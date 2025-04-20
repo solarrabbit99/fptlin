@@ -34,12 +34,20 @@ struct node_equal {
 typedef std::unordered_set<node, node_hash, node_equal> node_set;
 
 template <typename value_type>
-struct lin_impl {
+struct impl {
  public:
-  lin_impl(value_type empty_val) : empty_val(empty_val) {}
+  impl(value_type empty_val) : empty_val(empty_val) {}
 
+  bool is_linearizable(history_t<value_type>& hist) {
+    events = get_events(hist);
+    std::sort(events.begin(), events.end());
+    pattern = get_bit_pattern(events);
+    return dfs({0, 0});
+  }
+
+ private:
   bool inter_layer(node v, uint32_t crit_bit, uint32_t in_bit) {
-    // `v.bit` satisfies `crit_bit`
+    // `v.bit` doesn't satisfy `crit_bit`
     if (crit_bit & ~v.bit) return false;
 
     if (in_bit)  // add `in_bit`
@@ -55,11 +63,12 @@ struct lin_impl {
 
   bool intra_layer(node v, uint32_t max_bit) {
     for (int i = 0; i < MAX_PROC_NUM; ++i) {
-      // includes ongoing op in thread `i`
-      if (!((v.bit ^ max_bit) & (1 << i))) continue;
+      uint32_t curr_bit = 1U << i;
+
+      if ((curr_bit & v.bit) | (curr_bit & ~max_bit)) continue;
 
       operation_t<value_type>* to_add = ongoing[i];
-      node next{v.layer, v.bit | (1 << i)};
+      node next{v.layer, v.bit | curr_bit};
 
       if (to_add->method == Method::INSERT) {
         auto iter = values.insert(to_add->value);
@@ -92,14 +101,6 @@ struct lin_impl {
     return intra_layer(v, max_bit) || inter_layer(v, crit_bit, in_bit);
   }
 
-  bool is_linearizable(history_t<value_type>& hist) {
-    events = get_events(hist);
-    std::sort(events.begin(), events.end());
-    pattern = get_bit_pattern(events);
-    return dfs({0, 0});
-  }
-
- private:
   // global states
   events_t<value_type> events;
   std::vector<bit_pattern> pattern;
@@ -113,7 +114,7 @@ struct lin_impl {
 
 template <typename value_type>
 bool is_linearizable(history_t<value_type>& hist, value_type empty_val) {
-  return lin_impl<value_type>(empty_val).is_linearizable(hist);
+  return impl<value_type>(empty_val).is_linearizable(hist);
 }
 
 }  // namespace priorityqueue
