@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include "definitions.h"
 
 namespace fptlin {
@@ -27,13 +29,17 @@ events_t<value_type> get_events(history_t<value_type>& hist) {
 /**
  * Assume `events` is sorted, O(n)
  */
-template <typename value_type>
+template <typename value_type, fptlin::Method... methods>
 std::vector<bit_pattern> get_bit_pattern(events_t<value_type>& events) {
   std::vector<bit_pattern> ret;
   ret.reserve(events.size());
   uint32_t max_bit = 0;
   for (auto [time, is_inv, optr] : events) {
     uint32_t opbit = 1 << optr->proc;
+    if constexpr (sizeof...(methods) > 0) {
+      if (((optr->method != methods) && ...)) continue;
+    }
+
     if (is_inv) {
       ret.push_back({max_bit, 0, opbit});
       max_bit |= opbit;
