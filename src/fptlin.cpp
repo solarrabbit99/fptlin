@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "algo/priorityqueue_lin.h"
+#include "algo/queue_lin.h"
 #include "history_reader.h"
 
 using namespace fptlin;
@@ -19,6 +20,7 @@ auto get_monitor(const std::string& type) {
 #define SUPPORT_DS(TYPE) \
   if (type == #TYPE) return TYPE::is_linearizable<value_type>;
   //   TODO to support stack, queue
+  SUPPORT_DS(queue);
   SUPPORT_DS(priorityqueue);
 #undef SUPPORT_DS
   throw std::invalid_argument("Unknown data type");

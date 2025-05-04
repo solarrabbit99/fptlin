@@ -4,7 +4,6 @@
 #include <bit>
 #include <cstdint>
 #include <set>
-#include <unordered_set>
 #include <utility>
 
 #include "definitions.h"
@@ -13,25 +12,6 @@
 namespace fptlin {
 
 namespace priorityqueue {
-
-struct node {
-  int layer;
-  uint32_t bit;
-};
-
-struct node_hash {
-  std::size_t operator()(const node& n) const noexcept {
-    return std::hash<int64_t>{}(std::bit_cast<int64_t>(n));
-  }
-};
-
-struct node_equal {
-  bool operator()(const node& a, const node& b) const noexcept {
-    return std::bit_cast<int64_t>(a) == std::bit_cast<int64_t>(b);
-  }
-};
-
-typedef std::unordered_set<node, node_hash, node_equal> node_set;
 
 template <typename value_type>
 struct impl {
@@ -62,12 +42,12 @@ struct impl {
   }
 
   bool intra_layer(node v, uint32_t max_bit) {
-    for (int i = 0; i < MAX_PROC_NUM; ++i) {
-      uint32_t curr_bit = 1U << i;
+    for (uint32_t x = max_bit; x; x &= (x - 1)) {
+      uint32_t curr_bit = x & -x;
 
       if ((curr_bit & v.bit) | (curr_bit & ~max_bit)) continue;
 
-      operation_t<value_type>* to_add = ongoing[i];
+      operation_t<value_type>* to_add = ongoing[std::countr_zero(x)];
       node next{v.layer, v.bit | curr_bit};
 
       if (to_add->method == Method::INSERT) {
