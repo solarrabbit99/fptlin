@@ -26,7 +26,7 @@ struct ufds {
  private:
   std::size_t assign(value_type v) {
     auto iter = value_index.find(v);
-    if (iter != value_index.end()) return *iter;
+    if (iter != value_index.end()) return iter->second;
     std::size_t new_i = values.size();
     values.push_back(v);
     value_index[v] = new_i;
