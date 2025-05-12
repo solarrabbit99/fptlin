@@ -5,16 +5,13 @@ namespace fptlin {
 template <typename value_type, Method... methods>
 struct frontier_graph {
   using frontier_list_t =
-      std::vector<std::pair<node, const operation_t<value_type>&>>;
+      std::vector<std::pair<node, operation_t<value_type>*>>;
   using frontier_adj_list =
       std::unordered_map<node, frontier_list_t, node_hash>;
   using node_map = std::unordered_map<node, node, node_hash>;
   using node_ufds = fptlin::ufds<node, node_hash>;
 
-  template <typename method_group>
-  const frontier_list_t& next(const node& node) {
-    return madj_list[node];
-  }
+  const frontier_list_t& next(const node& node) { return madj_list[node]; }
 
   node first_same_node(const node& node) { return ufds.find(node); }
 
