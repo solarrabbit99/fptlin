@@ -24,7 +24,6 @@ struct impl {
     enq_graph.build(events);
     front_graph.build(events);
 
-    std::queue<node> bfs;
     node_set vis;
     node source{0, 0U};
     dest = front_graph.first_same_node({static_cast<int>(events.size()), 0U});
@@ -93,8 +92,12 @@ struct impl {
 
   bool extend_enq(node a) {
     for (auto& [b, entry] : matrix[a])
-      for (auto [c, optr] : enq_graph.next(a))
-        if (!precedes(b, c)) matrix[c][b].insert(optr->value);
+      for (auto [c, optr] : enq_graph.next(a)) {
+        if (!precedes(b, c)) {
+          bfs.push(c);
+          matrix[c][b].insert(optr->value);
+        }
+      }
     return false;
   }
 
@@ -116,6 +119,7 @@ struct impl {
   frontier_graph<value_type, Method::ENQ> enq_graph;
   frontier_graph<value_type, Method::PEEK, Method::DEQ> front_graph;
   dym_matrix matrix;
+  std::queue<node> bfs;
 };
 
 template <typename value_type>

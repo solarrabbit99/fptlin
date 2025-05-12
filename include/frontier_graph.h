@@ -32,16 +32,8 @@ struct frontier_graph {
       auto [time, is_inv, optr] = events[layer];
 
       uint32_t opbit = 1 << optr->proc;
-      uint32_t crit_bit = 0;
-      if (((optr->method == methods) || ...)) {
-        if (is_inv) {
-          max_bit |= opbit;
-          ongoing[optr->proc] = std::get<2>(events[layer]);
-        } else {
-          crit_bit = opbit;
-          max_bit ^= opbit;
-        }
-      }
+      uint32_t crit_bit =
+          !is_inv && ((optr->method == methods) || ...) ? opbit : 0;
 
       // iterate through all sub-masks in shrinking order
       for (uint32_t sub = max_bit;; sub = (sub - 1) & max_bit) {
@@ -63,6 +55,15 @@ struct frontier_graph {
         }
 
         if (sub == 0) break;
+      }
+
+      if (((optr->method == methods) || ...)) {
+        if (is_inv) {
+          max_bit |= opbit;
+          ongoing[optr->proc] = optr;
+        } else {
+          max_bit ^= opbit;
+        }
       }
     }
   }

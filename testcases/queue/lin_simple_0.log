@@ -1,0 +1,7 @@
+# queue
+0 enq 10 1 5
+1 enq 20 2 6
+2 deq 10 4 8
+3 peek 20 5 9
+0 deq 20 7 10
+0 peek -1 11 12

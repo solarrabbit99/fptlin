@@ -8,12 +8,13 @@ template <typename value_type, typename hash_type = std::hash<value_type>,
 struct ufds {
   value_type find(value_type v) { return values[find(assign(v))]; }
 
+  // prioritizes `a` as parent if of same size
   void join(value_type a, value_type b) {
     std::size_t tmp_a = find(assign(a));
     std::size_t tmp_b = find(assign(b));
-    if (subsizes[tmp_a] > subsizes[tmp_b]) std::swap(tmp_a, tmp_b);
-    subsizes[tmp_b] += subsizes[tmp_a];
-    parents[tmp_a] = tmp_b;
+    if (subsizes[tmp_a] < subsizes[tmp_b]) std::swap(tmp_a, tmp_b);
+    subsizes[tmp_a] += subsizes[tmp_b];
+    parents[tmp_b] = tmp_a;
   }
 
   void reserve(std::size_t max_size) {
