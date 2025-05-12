@@ -19,7 +19,7 @@ template <typename value_type>
 auto get_monitor(const std::string& type) {
 #define SUPPORT_DS(TYPE) \
   if (type == #TYPE) return TYPE::is_linearizable<value_type>;
-  //   TODO to support stack, queue
+  //   TODO to support stack
   SUPPORT_DS(queue);
   SUPPORT_DS(priorityqueue);
 #undef SUPPORT_DS
