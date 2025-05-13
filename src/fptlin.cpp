@@ -7,6 +7,7 @@
 
 #include "algo/priorityqueue_lin.h"
 #include "algo/queue_lin.h"
+#include "algo/stack_lin.h"
 #include "history_reader.h"
 
 using namespace fptlin;
@@ -19,7 +20,7 @@ template <typename value_type>
 auto get_monitor(const std::string& type) {
 #define SUPPORT_DS(TYPE) \
   if (type == #TYPE) return TYPE::is_linearizable<value_type>;
-  //   TODO to support stack
+  SUPPORT_DS(stack);
   SUPPORT_DS(queue);
   SUPPORT_DS(priorityqueue);
 #undef SUPPORT_DS
