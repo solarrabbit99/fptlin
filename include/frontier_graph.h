@@ -15,6 +15,8 @@ struct frontier_graph {
 
   const frontier_list_t& next(const node& node) { return madj_list[node]; }
 
+  const frontier_adj_list& adj_list() const { return madj_list; }
+
   node first_same_node(const node& node) { return ufds.find(node); }
 
   node last_same_node(const node& node) {

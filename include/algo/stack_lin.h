@@ -1,6 +1,7 @@
 #pragma once
 
-#include <queue>
+#include <cassert>
+#include <utility>
 
 #include "frontier_graph.h"
 
@@ -10,118 +11,115 @@ namespace stack {
 
 template <typename value_type>
 struct impl {
-  using non_terminal = value_type;
-  using matrix_entry = std::unordered_set<non_terminal>;
-  using dym_matrix = std::unordered_map<
+  enum NonTerminalSymbol {
+    S,
+    PUSH,
+    PEEK,
+  };
+  using non_terminal = std::pair<NonTerminalSymbol, value_type>;
+  struct non_terminal_hash {
+    std::size_t operator()(const non_terminal& n) const noexcept {
+      return std::hash<uint64_t>{}(static_cast<uint64_t>(n.first) << 32U |
+                                   static_cast<uint64_t>(n.second));
+    }
+  };
+  using matrix_entry = std::unordered_set<non_terminal, non_terminal_hash>;
+  using matrix_t = std::unordered_map<
       node, std::unordered_map<node, matrix_entry, node_hash>, node_hash>;
 
  public:
   impl(value_type empty_val) : empty_val(empty_val) {}
 
+  // TODO support unmatched histories with empty values
   bool is_linearizable(history_t<value_type>& hist) {
-    if (hist.empty()) return true;
+    int n = hist.size();
+    if (n == 0) return true;
 
     events_t<value_type> events = get_events(hist);
     std::sort(events.begin(), events.end());
-    enq_graph.build(events);
-    front_graph.build(events);
+    fgraph.build(events);
+    matrix_t m;
+    node_set nodes;
+    init_mat(m, nodes);
 
-    node_set vis;
-    node source{0, 0U};
-    dest = front_graph.first_same_node({static_cast<int>(events.size()), 0U});
-    bfs.push(source);
-    matrix[source][source].insert(empty_val);
-    while (!bfs.empty()) {
-      node v = bfs.front();
-      bfs.pop();
-      if (vis.insert(v).second && extend_node(v)) return true;
-    }
-    return false;
+    matrix_t m_prime;
+    smat_pow(m, n, m_prime, nodes);
+
+    node dest = fgraph.first_same_node({static_cast<int>(events.size()), 0U});
+    return m_prime[{0, 0}].count(dest);
   }
 
  private:
-  // Returns `true` if `dest` is found/reached
-  bool extend_node(node a) {
-    return extend_front(a) || extend_empty(a) || extend_enq(a);
-  }
-
-  bool extend_front(node a) {
-    std::queue<node> next_b;
-    for (auto& [b, entry] : matrix[a]) next_b.push(b);
-
-    node_set local_vis;
-    while (!next_b.empty()) {
-      node b = next_b.front();
-      next_b.pop();
-      if (!local_vis.insert(b).second) continue;
-
-      const matrix_entry& entry = matrix[a][b];
-      for (auto [c, optr] : front_graph.next(b)) {
-        if (optr->value != empty_val && entry.count(optr->value)) {
-          if (c == dest) return true;
-          next_b.push(c);
-          matrix[a][c].insert(optr->method == Method::PEEK ? optr->value
-                                                           : empty_val);
+  void init_mat(matrix_t& m, node_set& nodes) {
+    for (auto& [a, v] : fgraph.adj_list()) {
+      nodes.insert(a);
+      for (auto [b, optr] : v) {
+        nodes.insert(b);
+        switch (optr->method) {
+          {
+            case Method::PUSH:
+              m[a][b].insert({NonTerminalSymbol::PUSH, optr->value});
+              break;
+            case Method::PEEK:
+              m[a][b].insert({NonTerminalSymbol::PEEK, optr->value});
+              break;
+            case Method::POP:
+              m[a][b].insert({NonTerminalSymbol::S, optr->value});
+              break;
+            default:
+              std::unreachable();
+          }
         }
       }
     }
-    return false;
   }
 
-  bool extend_empty(node a) {
-    std::queue<node> next_b;
-    for (auto& [b, entry] : matrix[a]) next_b.push(b);
+  matrix_entry entry_mul(const matrix_entry& a, const matrix_entry& b) {
+    matrix_entry ret;
+    for (non_terminal x : b) {
+      if (x.first != NonTerminalSymbol::S || x.second == empty_val) continue;
 
-    node_set local_vis;
-    while (!next_b.empty()) {
-      node b = next_b.front();
-      next_b.pop();
-      if (!local_vis.insert(b).second) continue;
-
-      const matrix_entry& entry = matrix[a][b];
-      if (!entry.count(empty_val)) continue;
-
-      for (auto [c, optr] : front_graph.next(b)) {
-        if (optr->value == empty_val && overlaps(a, c)) {
-          if (c == dest) return true;
-          next_b.push(c);
-          matrix[a][c].insert(empty_val);
-        }
-      }
+      if (a.count({NonTerminalSymbol::PUSH, x.second}))
+        ret.insert({NonTerminalSymbol::S, empty_val});
+      else if (a.count({NonTerminalSymbol::PEEK, x.second}))
+        ret.insert({NonTerminalSymbol::S, x.second});
+      else if (a.count({NonTerminalSymbol::S, empty_val}))
+        ret.insert(x);
     }
-    return false;
+
+    return ret;
   }
 
-  bool extend_enq(node a) {
-    for (auto& [b, entry] : matrix[a])
-      for (auto [c, optr] : enq_graph.next(a)) {
-        if (!precedes(b, c)) {
-          bfs.push(c);
-          matrix[c][b].insert(optr->value);
-        }
-      }
-    return false;
+  void entry_accum(matrix_entry& a, const matrix_entry& b) {
+    a.insert(b.begin(), b.end());
   }
 
-  // `a` from `enq_graph` and `b` from `front_graph`
-  // both are first nodes
-  bool overlaps(node a, node b) {
-    return enq_graph.last_same_node(a).layer >= b.layer &&
-           front_graph.last_same_node(b).layer >= a.layer;
+  void smat_mul(matrix_t& a, matrix_t& b, matrix_t& c, const node_set& nodes) {
+    for (auto& i : nodes)
+      for (auto& k : nodes)
+        for (auto& j : nodes) entry_accum(c[i][j], entry_mul(a[i][k], b[k][j]));
   }
 
-  // `a` from `front_graph` and `b` from `enq_graph`
-  // both are first nodes
-  bool precedes(node a, node b) {
-    return front_graph.last_same_node(a).layer < b.layer;
+  void smat_pow(matrix_t& m, int pow, matrix_t& ret, const node_set& nodes) {
+    assert(pow > 0);
+
+    if (pow == 1) {
+      ret = m;
+      return;
+    }
+
+    matrix_t tmp;
+    smat_pow(m, pow >> 1, tmp, nodes);
+    smat_mul(tmp, tmp, ret, nodes);
+    if (pow & 1) {
+      matrix_t tmp2;
+      smat_mul(ret, m, tmp2, nodes);
+      ret = tmp2;
+    }
   }
 
-  node dest;
   value_type empty_val;
-  frontier_graph<value_type, Method::ENQ> enq_graph;
-  frontier_graph<value_type, Method::PEEK, Method::DEQ> front_graph;
-  dym_matrix matrix;
-  std::queue<node> bfs;
+  frontier_graph<value_type, Method::PUSH, Method::PEEK, Method::POP> fgraph;
 };
 
 template <typename value_type>
