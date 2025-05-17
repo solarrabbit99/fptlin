@@ -29,6 +29,11 @@ bool operator==(const node& a, const node& b) noexcept {
   return std::bit_cast<int64_t>(a) == std::bit_cast<int64_t>(b);
 }
 
+// for tie-breaking only, and does not imply actual ordering of the two
+bool operator<(const node& a, const node& b) noexcept {
+  return std::bit_cast<int64_t>(a) < std::bit_cast<int64_t>(b);
+}
+
 typedef std::unordered_set<node, node_hash> node_set;
 
 /**
