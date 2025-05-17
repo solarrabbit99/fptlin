@@ -29,13 +29,19 @@ struct impl {
       std::unordered_map<node, std::unordered_map<node, entry_t, node_hash>,
                          node_hash>;
 
+  // some unused value
+  constexpr static value_type VAL_EPSILON =
+      std::numeric_limits<value_type>::max();
+
  public:
   impl(value_type empty_val) : empty_val(empty_val) {}
 
-  // TODO support unmatched histories with empty values
   bool is_linearizable(history_t<value_type>& hist) {
     int n = hist.size();
     if (n == 0) return true;
+
+    handle_empty(hist, empty_val);
+    make_match(hist);
 
     events_t<value_type> events = get_events(hist);
     std::sort(events.begin(), events.end());
@@ -50,10 +56,37 @@ struct impl {
       calc_entry(entry_pos.first, entry_pos.second, dp_table);
 
     node dest = fgraph.first_same_node({static_cast<int>(events.size()), 0U});
-    return dp_table[{0, 0}][dest].count({NonTerminalSymbol::S, empty_val});
+    return dp_table[{0, 0}][dest].count({NonTerminalSymbol::S, VAL_EPSILON});
   }
 
  private:
+  // prepend an operation that pushes the empty value
+  void handle_empty(history_t<value_type>& hist, value_type empty_val) {
+    id_type id = hist.back().id + 1;
+    for (auto& op : hist) {
+      op.startTime += 2;
+      op.endTime += 2;
+    }
+    hist.push_back({id, hist.back().proc, Method::PUSH, empty_val, 0, 1});
+  }
+
+  void make_match(history_t<value_type>& hist) {
+    time_type last_time = 0;
+    id_type id = hist.back().id + 1;
+    for (auto& op : hist) last_time = std::max(op.endTime + 1, last_time);
+    last_time <<= 1;
+
+    int n = hist.size();
+    for (int i = 0; i < n; ++i) {
+      auto& op = hist[i];
+      if (op.method != Method::PEEK)
+        hist.push_back(
+            {id++, op.proc,
+             (op.method == Method::PUSH) ? Method::POP : Method::PUSH, op.value,
+             last_time - op.endTime, last_time - op.startTime});
+    }
+  }
+
   void init_mats(matrix_t<nonterm_entry>& dp_table, matrix_t<int>& dist_table,
                  node_set& nodes) {
     for (auto& [a, v] : fgraph.adj_list()) {
@@ -80,18 +113,37 @@ struct impl {
     }
   }
 
-  // Floyd-Warshall algorithm
+  // BFS from each node O(V * (V + E)), where E = O(kV)
   void dist_closure(matrix_t<int>& m, const node_set& nodes) {
-    for (auto& i : nodes)
-      for (auto& j : nodes)
-        for (auto& k : nodes) {
-          auto it = m[i].find(j);
-          if (it == m[i].end()) continue;
-          auto it_2 = m[j].find(k);
-          if (it_2 == m[j].end()) continue;
-          auto it_3 = m[i].find(k);
-          if (it_3 == m[i].end()) m[i][k] = it->second + it_2->second;
+    matrix_t<int> m2;
+    for (const node& src : nodes) {
+      std::unordered_map<node, int, node_hash> dist;
+      std::queue<node> q;
+
+      dist[src] = 0;
+      q.push(src);
+
+      while (!q.empty()) {
+        node u = q.front();
+        q.pop();
+
+        // Explore neighbors from m[u]
+        if (m.find(u) != m.end()) {
+          for (const auto& [v, _] : m[u]) {
+            if (dist.find(v) == dist.end()) {
+              dist[v] = dist[u] + 1;
+              q.push(v);
+            }
+          }
         }
+      }
+
+      // Store computed distances in m2[src][v]
+      for (const auto& [v, d] : dist) {
+        m2[src][v] = d;
+      }
+    }
+    std::swap(m, m2);
   }
 
   std::vector<std::pair<int, std::pair<node, node>>> entry_order(
@@ -115,13 +167,13 @@ struct impl {
   nonterm_entry entry_mul(const nonterm_entry& a, const nonterm_entry& b) {
     nonterm_entry ret;
     for (non_terminal x : b) {
-      if (x.first != NonTerminalSymbol::S || x.second == empty_val) continue;
+      if (x.first != NonTerminalSymbol::S || x.second == VAL_EPSILON) continue;
 
       if (a.count({NonTerminalSymbol::PUSH, x.second}))
-        ret.insert({NonTerminalSymbol::S, empty_val});
+        ret.insert({NonTerminalSymbol::S, VAL_EPSILON});
       else if (a.count({NonTerminalSymbol::PEEK, x.second}))
         ret.insert({NonTerminalSymbol::S, x.second});
-      else if (a.count({NonTerminalSymbol::S, empty_val}))
+      else if (a.count({NonTerminalSymbol::S, VAL_EPSILON}))
         ret.insert(x);
     }
 
