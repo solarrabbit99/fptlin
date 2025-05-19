@@ -53,6 +53,7 @@ struct impl {
     std::unordered_map<node, entry_index_t, node_hash> indices;
     init_mats(dp_table, adj_list, indices);
 
+    // time complexity bottleneck O(n^3)
     for (auto [dist, entry_pos] : entry_order(adj_list))
       calc_entry(entry_pos.first, entry_pos.second, dp_table);
 
