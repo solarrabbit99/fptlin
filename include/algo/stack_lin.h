@@ -25,9 +25,10 @@ struct impl {
   };
   using nonterm_entry = std::unordered_set<non_terminal, non_terminal_hash>;
   template <typename entry_t>
-  using matrix_t =
-      std::unordered_map<node, std::unordered_map<node, entry_t, node_hash>,
-                         node_hash>;
+  using matrix_t = std::vector<std::vector<entry_t>>;
+  using entry_index_t = std::size_t;
+  using entry_order_t =
+      std::vector<std::pair<int, std::pair<entry_index_t, entry_index_t>>>;
 
   // some unused value
   constexpr static value_type VAL_EPSILON =
@@ -46,17 +47,19 @@ struct impl {
     events_t<value_type> events = get_events(hist);
     std::sort(events.begin(), events.end());
     fgraph.build(events);
-    matrix_t<nonterm_entry> dp_table;
-    matrix_t<int> dist_table;
-    node_set nodes;
-    init_mats(dp_table, dist_table, nodes);
 
-    dist_closure(dist_table, nodes);
-    for (auto [dist, entry_pos] : entry_order(dist_table))
+    matrix_t<nonterm_entry> dp_table;
+    matrix_t<entry_index_t> adj_list;
+    std::unordered_map<node, entry_index_t, node_hash> indices;
+    init_mats(dp_table, adj_list, indices);
+
+    for (auto [dist, entry_pos] : entry_order(adj_list))
       calc_entry(entry_pos.first, entry_pos.second, dp_table);
 
     node dest = fgraph.first_same_node({static_cast<int>(events.size()), 0U});
-    return dp_table[{0, 0}][dest].count({NonTerminalSymbol::S, VAL_EPSILON});
+    std::size_t start_i = indices[{0, 0}];
+    std::size_t end_i = indices[dest];
+    return dp_table[start_i][end_i].count({NonTerminalSymbol::S, VAL_EPSILON});
   }
 
  private:
@@ -87,23 +90,32 @@ struct impl {
     }
   }
 
-  void init_mats(matrix_t<nonterm_entry>& dp_table, matrix_t<int>& dist_table,
-                 node_set& nodes) {
+  void init_mats(matrix_t<nonterm_entry>& dp_table,
+                 matrix_t<entry_index_t>& adj_list,
+                 std::unordered_map<node, entry_index_t, node_hash>& indices) {
     for (auto& [a, v] : fgraph.adj_list()) {
-      nodes.insert(a);
+      indices.emplace(a, indices.size());
+      for (auto [b, optr] : v) indices.emplace(b, indices.size());
+    }
+    std::size_t n = indices.size();
+    dp_table.resize(n, std::vector<nonterm_entry>(n));
+    adj_list.resize(n);
+
+    for (auto& [a, v] : fgraph.adj_list()) {
+      entry_index_t a_i = indices[a];
       for (auto [b, optr] : v) {
-        nodes.insert(b);
-        dist_table[a][b] = 1;
+        entry_index_t b_i = indices[b];
+        adj_list[a_i].push_back(b_i);
         switch (optr->method) {
           {
             case Method::PUSH:
-              dp_table[a][b].insert({NonTerminalSymbol::PUSH, optr->value});
+              dp_table[a_i][b_i].insert({NonTerminalSymbol::PUSH, optr->value});
               break;
             case Method::PEEK:
-              dp_table[a][b].insert({NonTerminalSymbol::PEEK, optr->value});
+              dp_table[a_i][b_i].insert({NonTerminalSymbol::PEEK, optr->value});
               break;
             case Method::POP:
-              dp_table[a][b].insert({NonTerminalSymbol::S, optr->value});
+              dp_table[a_i][b_i].insert({NonTerminalSymbol::S, optr->value});
               break;
             default:
               std::unreachable();
@@ -114,54 +126,41 @@ struct impl {
   }
 
   // BFS from each node O(V * (V + E)), where E = O(kV)
-  void dist_closure(matrix_t<int>& m, const node_set& nodes) {
-    matrix_t<int> m2;
-    for (const node& src : nodes) {
-      std::unordered_map<node, int, node_hash> dist;
-      std::queue<node> q;
+  entry_order_t entry_order(matrix_t<entry_index_t>& adj_list) {
+    std::size_t n = adj_list.size();
+    entry_order_t ret;
+
+    for (entry_index_t src = 0; src < adj_list.size(); ++src) {
+      std::vector<int> dist(n, -1);
+      std::queue<entry_index_t> q;
 
       dist[src] = 0;
       q.push(src);
 
       while (!q.empty()) {
-        node u = q.front();
+        entry_index_t u = q.front();
         q.pop();
 
-        // Explore neighbors from m[u]
-        if (m.find(u) != m.end()) {
-          for (const auto& [v, _] : m[u]) {
-            if (dist.find(v) == dist.end()) {
-              dist[v] = dist[u] + 1;
-              q.push(v);
-            }
+        // Explore neighbors from adj_list[u]
+        for (entry_index_t v : adj_list[u])
+          if (dist[v] == -1) {
+            dist[v] = dist[u] + 1;
+            q.push(v);
           }
-        }
       }
 
-      // Store computed distances in m2[src][v]
-      for (const auto& [v, d] : dist) {
-        m2[src][v] = d;
-      }
+      // Store computed distances
+      for (entry_index_t i = 0; i < n; ++i)
+        if (dist[i] != -1) ret.push_back({dist[i], {src, i}});
     }
-    std::swap(m, m2);
-  }
-
-  std::vector<std::pair<int, std::pair<node, node>>> entry_order(
-      const matrix_t<int>& dist_table) {
-    std::vector<std::pair<int, std::pair<node, node>>> ret;
-    for (auto& [a, v] : dist_table)
-      for (auto& [b, d] : v) ret.push_back({d, {a, b}});
     std::sort(ret.begin(), ret.end());
     return ret;
   }
 
-  void calc_entry(const node& a, const node& b,
+  void calc_entry(entry_index_t a, entry_index_t b,
                   matrix_t<nonterm_entry>& dp_table) {
-    for (const auto& [c, e] : dp_table[a]) {
-      auto it = dp_table[c].find(b);
-      if (it == dp_table[c].end()) continue;
-      entry_accum(dp_table[a][b], entry_mul(e, it->second));
-    }
+    for (entry_index_t c = 0; c < dp_table[a].size(); ++c)
+      entry_accum(dp_table[a][b], entry_mul(dp_table[a][c], dp_table[c][b]));
   }
 
   nonterm_entry entry_mul(const nonterm_entry& a, const nonterm_entry& b) {
