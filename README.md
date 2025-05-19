@@ -54,10 +54,10 @@ _linearizability_ prints `1` when input history is linearizable, `0` otherwise.
 
 ## Time Complexity
 
-Constant factors, including number of threads, are hidden.
+`n` is the size of the given history and `k` is the number of processes
 
-| Data Type      | Time Complexity |
-| -------------- | --------------- |
-| Stack          | $O(n^3)$        |
-| Queue          | $O(n^2)$        |
-| Priority Queue | $O(n\log{n})$   |
+| Data Type      | Time Complexity          |
+| -------------- | ------------------------ |
+| Stack          | $O(k2^{3k} \cdot n^3)$   |
+| Queue          | $O(k2^{2k} \cdot n^2)$   |
+| Priority Queue | $O(k2^k \cdot n\log{n})$ |
