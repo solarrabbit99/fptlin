@@ -50,9 +50,8 @@ struct frontier_graph {
         }
 
         // populate `adj_list`
-        for (uint32_t x = max_bit; x; x &= (x - 1)) {
+        for (uint32_t x = (max_bit & ~sub); x; x &= (x - 1)) {
           uint32_t curr_bit = x & -x;
-          if ((curr_bit & sub) | (curr_bit & ~max_bit)) continue;
           operation_t<value_type>* to_add = ongoing[std::countr_zero(x)];
           node next{layer, sub | curr_bit};
           madj_list[first].emplace_back(ufds.find(next), to_add);
