@@ -12,7 +12,7 @@ namespace stack {
 template <typename value_type>
 struct impl {
   enum NonTerminalSymbol {
-    S,
+    T,
     PUSH,
     PEEK,
   };
@@ -60,7 +60,7 @@ struct impl {
     node dest = fgraph.first_same_node({static_cast<int>(events.size()), 0U});
     std::size_t start_i = indices[{0, 0}];
     std::size_t end_i = indices[dest];
-    return dp_table[start_i][end_i].count({NonTerminalSymbol::S, VAL_EPSILON});
+    return dp_table[start_i][end_i].count({NonTerminalSymbol::T, VAL_EPSILON});
   }
 
  private:
@@ -116,7 +116,7 @@ struct impl {
               dp_table[a_i][b_i].insert({NonTerminalSymbol::PEEK, optr->value});
               break;
             case Method::POP:
-              dp_table[a_i][b_i].insert({NonTerminalSymbol::S, optr->value});
+              dp_table[a_i][b_i].insert({NonTerminalSymbol::T, optr->value});
               break;
             default:
               std::unreachable();
@@ -167,13 +167,13 @@ struct impl {
   nonterm_entry entry_mul(const nonterm_entry& a, const nonterm_entry& b) {
     nonterm_entry ret;
     for (non_terminal x : b) {
-      if (x.first != NonTerminalSymbol::S || x.second == VAL_EPSILON) continue;
+      if (x.first != NonTerminalSymbol::T || x.second == VAL_EPSILON) continue;
 
       if (a.count({NonTerminalSymbol::PUSH, x.second}))
-        ret.insert({NonTerminalSymbol::S, VAL_EPSILON});
+        ret.insert({NonTerminalSymbol::T, VAL_EPSILON});
       else if (a.count({NonTerminalSymbol::PEEK, x.second}))
-        ret.insert({NonTerminalSymbol::S, x.second});
-      else if (a.count({NonTerminalSymbol::S, VAL_EPSILON}))
+        ret.insert({NonTerminalSymbol::T, x.second});
+      else if (a.count({NonTerminalSymbol::T, VAL_EPSILON}))
         ret.insert(x);
     }
 
