@@ -7,6 +7,7 @@
 
 #include "algo/priorityqueue_lin.h"
 #include "algo/queue_lin.h"
+#include "algo/rmw_lin.h"
 #include "algo/stack_lin.h"
 #include "history_reader.h"
 
@@ -14,18 +15,25 @@ using namespace fptlin;
 
 typedef std::chrono::steady_clock hr_clock;
 typedef int default_value_type;
-const default_value_type defaultEmptyVal = -1;
+
+#define SUPPORT_DS(TYPE) \
+  if (type == #TYPE) return TYPE::is_linearizable<value_type>;
 
 template <typename value_type>
 auto get_monitor(const std::string& type) {
-#define SUPPORT_DS(TYPE) \
-  if (type == #TYPE) return TYPE::is_linearizable<value_type>;
   SUPPORT_DS(stack);
   SUPPORT_DS(queue);
   SUPPORT_DS(priorityqueue);
-#undef SUPPORT_DS
   throw std::invalid_argument("Unknown data type");
 }
+
+template <pair_type value_type>
+auto get_monitor(const std::string& type) {
+  SUPPORT_DS(rmw);
+  throw std::invalid_argument("Unknown data type");
+}
+
+#undef SUPPORT_DS
 
 void print_usage() {
   std::cout << "Usage: ./fptlin [-tvh] <history_file>\n"
@@ -79,15 +87,29 @@ int main(int argc, char* argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  history_reader<default_value_type> reader(input_file);
+  history_reader reader(input_file);
   std::string histType = reader.get_type_s();
-  auto monitor = get_monitor<default_value_type>(histType);
-  auto hist = reader.get_hist();
-  size_t operations = hist.size();
 
-  hr_clock::time_point start = hr_clock::now();
-  bool result = monitor(hist, defaultEmptyVal);
-  hr_clock::time_point end = hr_clock::now();
+  hr_clock::time_point start, end;
+  bool result;
+  size_t operations;
+  if (histType == "rmw") {
+    using pair_default_value_t =
+        std::pair<default_value_type, default_value_type>;
+    auto hist = reader.get_hist<pair_default_value_t>();
+    operations = hist.size();
+    auto monitor = get_monitor<pair_default_value_t>(histType);
+    start = hr_clock::now();
+    result = monitor(hist);
+  } else {
+    auto hist = reader.get_hist<default_value_type>();
+    operations = hist.size();
+    auto monitor = get_monitor<default_value_type>(histType);
+    start = hr_clock::now();
+    result = monitor(hist);
+  }
+
+  end = hr_clock::now();
   int64_t time_micros =
       std::chrono::duration_cast<std::chrono::microseconds>(end - start)
           .count();

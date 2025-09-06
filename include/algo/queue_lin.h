@@ -16,8 +16,6 @@ struct impl {
       node, std::unordered_map<node, matrix_entry, node_hash>, node_hash>;
 
  public:
-  impl(value_type empty_val) : empty_val(empty_val) {}
-
   bool is_linearizable(history_t<value_type>& hist) {
     if (hist.empty()) return true;
 
@@ -30,7 +28,7 @@ struct impl {
     node source{0, 0U};
     dest = front_graph.first_same_node({static_cast<int>(events.size()), 0U});
     bfs.push(source);
-    matrix[source][source].insert(empty_val);
+    matrix[source][source].insert(EMPTY_VALUE);
     while (!bfs.empty()) {
       node v = bfs.front();
       bfs.pop();
@@ -57,11 +55,11 @@ struct impl {
 
       const matrix_entry& entry = matrix[a][b];
       for (auto [c, optr] : front_graph.next(b)) {
-        if (optr->value != empty_val && entry.count(optr->value)) {
+        if (optr->value != EMPTY_VALUE && entry.count(optr->value)) {
           if (c == dest) return true;
           next_b.push(c);
           matrix[a][c].insert(optr->method == Method::PEEK ? optr->value
-                                                           : empty_val);
+                                                           : EMPTY_VALUE);
         }
       }
     }
@@ -79,13 +77,13 @@ struct impl {
       if (!local_vis.insert(b).second) continue;
 
       const matrix_entry& entry = matrix[a][b];
-      if (!entry.count(empty_val)) continue;
+      if (!entry.count(EMPTY_VALUE)) continue;
 
       for (auto [c, optr] : front_graph.next(b)) {
-        if (optr->value == empty_val && overlaps(a, c)) {
+        if (optr->value == EMPTY_VALUE && overlaps(a, c)) {
           if (c == dest) return true;
           next_b.push(c);
-          matrix[a][c].insert(empty_val);
+          matrix[a][c].insert(EMPTY_VALUE);
         }
       }
     }
@@ -117,7 +115,6 @@ struct impl {
   }
 
   node dest;
-  value_type empty_val;
   frontier_graph<value_type, Method::ENQ> enq_graph;
   frontier_graph<value_type, Method::PEEK, Method::DEQ> front_graph;
   dym_matrix matrix;
@@ -125,8 +122,8 @@ struct impl {
 };
 
 template <typename value_type>
-bool is_linearizable(history_t<value_type>& hist, value_type empty_val) {
-  return impl<value_type>(empty_val).is_linearizable(hist);
+bool is_linearizable(history_t<value_type>& hist) {
+  return impl<value_type>().is_linearizable(hist);
 }
 
 }  // namespace queue

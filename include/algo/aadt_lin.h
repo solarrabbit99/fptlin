@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <bit>
 #include <cstdint>
+#include <type_traits>
 #include <utility>
 
 #include "definitions.h"
@@ -13,18 +14,15 @@ namespace fptlin {
 namespace aadt {
 
 template <typename aadt_impl_t, typename value_type>
-concept aadt_impl =
-    requires(aadt_impl_t x, operation_t<value_type>* o, value_type v) {
-      { aadt_impl_t(v) } -> std::same_as<aadt_impl_t>;
-      { x.apply(o) } -> std::same_as<bool>;
-      { x.undo(o) } -> std::same_as<void>;
-    };
+concept aadt_impl = std::is_default_constructible_v<aadt_impl_t> &&
+                    requires(aadt_impl_t x, operation_t<value_type>* o) {
+                      { x.apply(o) } -> std::same_as<bool>;
+                      { x.undo(o) } -> std::same_as<void>;
+                    };
 
 template <typename value_type, aadt_impl<value_type> aadt_impl_t>
 struct impl {
  public:
-  impl(value_type empty_val) : obj_impl(empty_val) {}
-
   bool is_linearizable(history_t<value_type>& hist) {
     events = get_events(hist);
     std::sort(events.begin(), events.end());
@@ -67,7 +65,6 @@ struct impl {
     return false;
   }
 
-  // practically O(k log n) time for each loop
   bool dfs(node v) {
     if (std::cmp_equal(v.layer, events.size())) return true;
     if (!visited.insert(v).second) return false;

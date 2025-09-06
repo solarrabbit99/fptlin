@@ -10,7 +10,7 @@ namespace priorityqueue {
 
 template <typename value_type>
 struct priority_queue_impl {
-  priority_queue_impl(value_type empty_val) : empty_val{empty_val} {}
+  priority_queue_impl() {}
 
   bool apply(operation_t<value_type>* o) {
     switch (o->method) {
@@ -18,7 +18,7 @@ struct priority_queue_impl {
         values.insert(o->value);
         return true;
       case POLL: {
-        if (values.empty() && o->value == empty_val) return true;
+        if (values.empty() && o->value == EMPTY_VALUE) return true;
         auto highest_iter = values.rbegin();
         if (!values.empty() && *highest_iter == o->value) {
           values.erase(std::prev(highest_iter.base()));
@@ -27,7 +27,7 @@ struct priority_queue_impl {
         return false;
       }
       case PEEK:
-        if (values.empty() && o->value == empty_val) return true;
+        if (values.empty() && o->value == EMPTY_VALUE) return true;
         if (!values.empty() && *values.rbegin() == o->value) return true;
         return false;
       default:
@@ -50,13 +50,12 @@ struct priority_queue_impl {
   }
 
  private:
-  value_type empty_val;
   std::multiset<value_type> values;
 };
 
 template <typename value_type>
-bool is_linearizable(history_t<value_type>& hist, value_type empty_val) {
-  return aadt::impl<value_type, priority_queue_impl<value_type>>(empty_val)
+bool is_linearizable(history_t<value_type>& hist) {
+  return aadt::impl<value_type, priority_queue_impl<value_type>>()
       .is_linearizable(hist);
 }
 

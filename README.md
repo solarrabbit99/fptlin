@@ -1,6 +1,6 @@
 # Fptlin
 
-Fixed parameter tractable algorithms for monitoring linearizability for stack, queue and priority queue histories.
+Fixed parameter tractable algorithms for monitoring linearizability for concurrent histories.
 
 ## Histories
 
@@ -11,8 +11,9 @@ Histories are text files that provide a **data type** as header and **operations
 - `stack`
 - `queue`
 - `priorityqueue`
+- `rmw`
 
-**Operations** are denoted by process id, method, value, start time, and end time in that order. Refer to examples in `testcases` directory for supported methods for a given data type.
+**Operations** are denoted by process id, method, value (one or more), start time, and end time in that order. Refer to examples in `testcases` directory for supported methods and values for a given data type.
 
 ### Example
 
@@ -56,8 +57,9 @@ _linearizability_ prints `1` when input history is linearizable, `0` otherwise.
 
 `n` is the size of the given history and `k` is the number of processes
 
-| Data Type      | Time Complexity          |
-| -------------- | ------------------------ |
-| Stack          | $O(k2^{3k} \cdot n^3)$   |
-| Queue          | $O(k2^{2k} \cdot n^2)$   |
-| Priority Queue | $O(k2^k \cdot n\log{n})$ |
+| Data Type                  | Time Complexity          |
+| -------------------------- | ------------------------ |
+| Stack                      | $O(k2^{3k} \cdot n^3)$   |
+| Queue                      | $O(k2^{2k} \cdot n^2)$   |
+| Priority Queue             | $O(k2^k \cdot n\log{n})$ |
+| Read-Modify-Write Register | $O(k2^k \cdot n)$        |

@@ -35,13 +35,11 @@ struct impl {
       std::numeric_limits<value_type>::max();
 
  public:
-  impl(value_type empty_val) : empty_val(empty_val) {}
-
   bool is_linearizable(history_t<value_type>& hist) {
     int n = hist.size();
     if (n == 0) return true;
 
-    handle_empty(hist, empty_val);
+    handle_empty(hist);
     make_match(hist);
 
     events_t<value_type> events = get_events(hist);
@@ -65,13 +63,13 @@ struct impl {
 
  private:
   // prepend an operation that pushes the empty value
-  void handle_empty(history_t<value_type>& hist, value_type empty_val) {
+  void handle_empty(history_t<value_type>& hist) {
     id_type id = hist.back().id + 1;
     for (auto& op : hist) {
       op.startTime += 2;
       op.endTime += 2;
     }
-    hist.push_back({id, hist.back().proc, Method::PUSH, empty_val, 0, 1});
+    hist.push_back({id, hist.back().proc, Method::PUSH, EMPTY_VALUE, 0, 1});
   }
 
   void make_match(history_t<value_type>& hist) {
@@ -184,13 +182,12 @@ struct impl {
     a.insert(b.begin(), b.end());
   }
 
-  value_type empty_val;
   frontier_graph<value_type, Method::PUSH, Method::PEEK, Method::POP> fgraph;
 };
 
 template <typename value_type>
-bool is_linearizable(history_t<value_type>& hist, value_type empty_val) {
-  return impl<value_type>(empty_val).is_linearizable(hist);
+bool is_linearizable(history_t<value_type>& hist) {
+  return impl<value_type>().is_linearizable(hist);
 }
 
 }  // namespace stack

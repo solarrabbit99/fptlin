@@ -3,15 +3,16 @@
 #include <fstream>
 #include <sstream>
 
+#include "commons/utility.h"
 #include "definitions.h"
 
 namespace fptlin {
 
-template <typename value_type>
 struct history_reader {
  public:
   history_reader(const std::string& path) : path(path) {}
 
+  template <typename value_type>
   history_t<value_type> get_hist() {
     std::ifstream f(path);
     std::string line;
@@ -28,6 +29,31 @@ struct history_reader {
       time_type startTime, endTime;
 
       ss >> proc >> methodStr >> value >> startTime >> endTime;
+
+      hist.emplace_back(++id, proc, stomethod(methodStr), value, startTime,
+                        endTime);
+    }
+    return hist;
+  }
+
+  template <pair_type value_type>
+  history_t<value_type> get_hist() {
+    std::ifstream f(path);
+    std::string line;
+    history_t<value_type> hist;
+    id_type id = 0;
+    while (std::getline(f, line)) {
+      std::stringstream ss{line};
+      line = trim(line);
+      if (line.empty() || line[0] == '#') continue;
+
+      proc_type proc;
+      std::string methodStr;
+      value_type value;
+      time_type startTime, endTime;
+
+      ss >> proc >> methodStr >> value.first >> value.second >> startTime >>
+          endTime;
 
       hist.emplace_back(++id, proc, stomethod(methodStr), value, startTime,
                         endTime);
