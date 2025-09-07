@@ -1,15 +1,14 @@
 #pragma once
 
 #include "aadt_lin.h"
-#include "commons/utility.h"
 
 namespace fptlin {
 
 namespace rmw {
 
-template <pair_type pair_value_t>
+template <typename pair_value_t>
 struct rmw_impl {
-  using value_type = decltype(std::declval<pair_value_t>().first);
+  using value_type = std::tuple_element<0, pair_value_t>::type;
 
   rmw_impl() : reg{0} {}
 
@@ -29,7 +28,7 @@ struct rmw_impl {
   value_type reg;
 };
 
-template <pair_type pair_value_t>
+template <typename pair_value_t>
 bool is_linearizable(history_t<pair_value_t>& hist) {
   return aadt::impl<pair_value_t, rmw_impl<pair_value_t>>().is_linearizable(
       hist);

@@ -3,12 +3,8 @@
 
 #include <chrono>
 #include <iostream>
-#include <memory>
 
-#include "algo/priorityqueue_lin.h"
-#include "algo/queue_lin.h"
-#include "algo/rmw_lin.h"
-#include "algo/stack_lin.h"
+#include "algo/algos.h"
 #include "history_reader.h"
 
 using namespace fptlin;
@@ -16,24 +12,37 @@ using namespace fptlin;
 typedef std::chrono::steady_clock hr_clock;
 typedef int default_value_type;
 
-#define SUPPORT_DS(TYPE) \
-  if (type == #TYPE) return TYPE::is_linearizable<value_type>;
+hr_clock::time_point start, end;
+bool result;
+std::string hist_type;
+size_t hist_size;
 
-template <typename value_type>
-auto get_monitor(const std::string& type) {
-  SUPPORT_DS(stack);
-  SUPPORT_DS(queue);
-  SUPPORT_DS(priorityqueue);
-  throw std::invalid_argument("Unknown data type");
+#define FPTLIN_ADT_EXPAND(VARIADIC_MACRO)           \
+  VARIADIC_MACRO(stack, default_value_type)         \
+  VARIADIC_MACRO(queue, default_value_type)         \
+  VARIADIC_MACRO(priorityqueue, default_value_type) \
+  VARIADIC_MACRO(rmw, default_value_type, default_value_type)
+
+void monitor(const std::string& input_file) {
+  history_reader reader(input_file);
+  hist_type = reader.get_type_s();
+
+#define FPTLIN_ADT_SWITCH(ADT, ...)             \
+  if (hist_type == #ADT) {                      \
+    auto hist = reader.get_hist<__VA_ARGS__>(); \
+    hist_size = hist.size();                    \
+    start = hr_clock::now();                    \
+    result = ADT::is_linearizable(hist);        \
+    end = hr_clock::now();                      \
+    return;                                     \
+  }
+  FPTLIN_ADT_EXPAND(FPTLIN_ADT_SWITCH)
+#undef FPTLIN_ADT_SWITCH
+
+  throw std::invalid_argument("Unknown data type '" + hist_type + "'");
 }
 
-template <pair_type value_type>
-auto get_monitor(const std::string& type) {
-  SUPPORT_DS(rmw);
-  throw std::invalid_argument("Unknown data type");
-}
-
-#undef SUPPORT_DS
+#undef FPTLIN_ADT_EXPAND
 
 void print_usage() {
   std::cout << "Usage: ./fptlin [-tvh] <history_file>\n"
@@ -44,7 +53,7 @@ void print_usage() {
 }
 
 int main(int argc, char* argv[]) {
-  const char* titles[]{"result", "time_taken", "operations", "exclude_peeks"};
+  const char* titles[]{"result", "time_taken", "size", "exclude_peeks"};
   bool to_print[]{true, false, false};
   auto& [_, print_time, print_size] = to_print;
   bool print_header = false;
@@ -87,29 +96,8 @@ int main(int argc, char* argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  history_reader reader(input_file);
-  std::string histType = reader.get_type_s();
+  monitor(input_file);
 
-  hr_clock::time_point start, end;
-  bool result;
-  size_t operations;
-  if (histType == "rmw") {
-    using pair_default_value_t =
-        std::pair<default_value_type, default_value_type>;
-    auto hist = reader.get_hist<pair_default_value_t>();
-    operations = hist.size();
-    auto monitor = get_monitor<pair_default_value_t>(histType);
-    start = hr_clock::now();
-    result = monitor(hist);
-  } else {
-    auto hist = reader.get_hist<default_value_type>();
-    operations = hist.size();
-    auto monitor = get_monitor<default_value_type>(histType);
-    start = hr_clock::now();
-    result = monitor(hist);
-  }
-
-  end = hr_clock::now();
   int64_t time_micros =
       std::chrono::duration_cast<std::chrono::microseconds>(end - start)
           .count();
@@ -122,7 +110,7 @@ int main(int argc, char* argv[]) {
 
   std::cout << result << " ";
   if (print_time) std::cout << (time_micros / 1e6) << " ";
-  if (print_size) std::cout << operations << " ";
+  if (print_size) std::cout << hist_size << " ";
   std::cout << std::endl;
 
   return 0;

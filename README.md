@@ -13,16 +13,17 @@ Histories are text files that provide a **data type** as header and **operations
 - `priorityqueue`
 - `rmw`
 
-**Operations** are denoted by process id, method, value (one or more), start time, and end time in that order. Refer to examples in `testcases` directory for supported methods and values for a given data type.
+**Operations** are denoted by process id, start time, end time, method, and value(s) in that order. Refer to examples in `testcases` directory for supported methods and values for a given data type.
 
 ### Example
 
 ```
 # stack
-0 push 1 1 2
-0 peek 2 3 4
-1 pop 2 5 6
-1 pop 1 7 8
+0 1 5 PUSH 1
+1 2 6 PUSH 2
+2 3 7 POP 2
+3 4 8 POP 1
+4 2 9 PEEK -1
 ```
 
 ## Usage
