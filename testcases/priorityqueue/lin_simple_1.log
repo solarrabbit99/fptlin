@@ -1,10 +1,10 @@
 # priorityqueue
-0 insert 2 0 4
-1 insert 3 1 5
-2 insert 5 2 6
-3 insert 5 3 7
-3 peek 5 8 9
-0 poll 2 10 14
-1 poll 3 11 15
-2 poll 5 12 16
-3 poll 5 13 17
+0 0 4 INSERT 2
+1 1 5 INSERT 3
+2 2 6 INSERT 5
+3 3 7 INSERT 5
+3 8 9 PEEK 5
+0 10 14 POLL 2
+1 11 15 POLL 3
+2 12 16 POLL 5
+3 13 17 POLL 5

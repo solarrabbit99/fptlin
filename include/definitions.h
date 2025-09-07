@@ -9,38 +9,38 @@ namespace fptlin {
 
 #define MIN_TIME std::numeric_limits<time_type>::lowest()
 #define MAX_TIME std::numeric_limits<time_type>::max()
-#define MAX_PROC_NUM 32
+#define MAX_PROC_NUM std::numeric_limits<proc_type>::digits
 #define EMPTY_VALUE -1
 
 #define FPTLIN_METHOD_EXPAND(MACRO) \
-  MACRO(PUSH, "push")               \
-  MACRO(POP, "pop")                 \
-  MACRO(PEEK, "peek")               \
-  MACRO(ENQ, "enq")                 \
-  MACRO(DEQ, "deq")                 \
-  MACRO(INSERT, "insert")           \
-  MACRO(POLL, "poll")               \
-  MACRO(REMOVE, "remove")           \
-  MACRO(READ_MODIFY_WRITE, "rmw")
+  MACRO(PUSH)                       \
+  MACRO(POP)                        \
+  MACRO(PEEK)                       \
+  MACRO(ENQ)                        \
+  MACRO(DEQ)                        \
+  MACRO(INSERT)                     \
+  MACRO(POLL)                       \
+  MACRO(REMOVE)                     \
+  MACRO(READ_MODIFY_WRITE)
 
 enum Method {
-#define FPTLIN_METHOD_LIST(ENUM, STR) ENUM,
+#define FPTLIN_METHOD_LIST(ENUM) ENUM,
   FPTLIN_METHOD_EXPAND(FPTLIN_METHOD_LIST)
 #undef FPTLIN_METHOD_LIST
 };
 
 inline Method stomethod(const std::string& str) {
-#define FPTLIN_METHOD_TRANSLATE(ENUM, STR) \
-  if (str == STR) return Method::ENUM;
+#define FPTLIN_METHOD_TRANSLATE(ENUM) \
+  if (str == #ENUM) return Method::ENUM;
   FPTLIN_METHOD_EXPAND(FPTLIN_METHOD_TRANSLATE)
 #undef FPTLIN_METHOD_TRANSLATE
   throw std::invalid_argument("Unknown method: " + str);
 }
 
 inline std::string methodtos(const Method& method) {
-#define FPTLIN_METHODSTR_TRANSLATE(ENUM, STR) \
-  case ENUM:                                  \
-    return STR;
+#define FPTLIN_METHODSTR_TRANSLATE(ENUM) \
+  case ENUM:                             \
+    return #ENUM;
   switch (method) {
     FPTLIN_METHOD_EXPAND(FPTLIN_METHODSTR_TRANSLATE)
     default:

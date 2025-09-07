@@ -1,6 +1,6 @@
 # stack
-0 push 1 1 5
-1 push 2 2 6
-2 pop 2 3 7
-3 pop 1 4 8
-4 peek -1 2 9
+0 1 5 PUSH 1
+1 2 6 PUSH 2
+2 3 7 POP 2
+3 4 8 POP 1
+4 2 9 PEEK -1

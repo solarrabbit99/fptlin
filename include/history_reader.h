@@ -28,7 +28,7 @@ struct history_reader {
       value_type value;
       time_type startTime, endTime;
 
-      ss >> proc >> methodStr >> value >> startTime >> endTime;
+      ss >> proc >> startTime >> endTime >> methodStr >> value;
 
       hist.emplace_back(++id, proc, stomethod(methodStr), value, startTime,
                         endTime);
@@ -52,8 +52,8 @@ struct history_reader {
       value_type value;
       time_type startTime, endTime;
 
-      ss >> proc >> methodStr >> value.first >> value.second >> startTime >>
-          endTime;
+      ss >> proc >> startTime >> endTime >> methodStr >> value.first >>
+          value.second;
 
       hist.emplace_back(++id, proc, stomethod(methodStr), value, startTime,
                         endTime);
