@@ -36,16 +36,17 @@ struct priority_queue_impl {
   }
 
   void undo(operation_t<value_type>* o) {
+    if (o->value == EMPTY_VALUE) return;
+
     switch (o->method) {
       case INSERT:
-        [[fallthrough]];
-      case POLL:
         values.erase(o->value);
         return;
-      case PEEK:
+      case POLL:
+        values.insert(o->value);
         return;
       default:
-        std::unreachable();
+        return;
     }
   }
 

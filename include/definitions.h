@@ -21,6 +21,7 @@ namespace fptlin {
   MACRO(INSERT)                     \
   MACRO(POLL)                       \
   MACRO(REMOVE)                     \
+  MACRO(CONTAINS)                   \
   MACRO(READ_MODIFY_WRITE)
 
 enum Method {

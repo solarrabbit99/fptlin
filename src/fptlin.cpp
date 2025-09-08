@@ -17,11 +17,12 @@ bool result;
 std::string hist_type;
 size_t hist_size;
 
-#define FPTLIN_ADT_EXPAND(VARIADIC_MACRO)           \
-  VARIADIC_MACRO(stack, default_value_type)         \
-  VARIADIC_MACRO(queue, default_value_type)         \
-  VARIADIC_MACRO(priorityqueue, default_value_type) \
-  VARIADIC_MACRO(rmw, default_value_type, default_value_type)
+#define FPTLIN_ADT_EXPAND(VARIADIC_MACRO)                     \
+  VARIADIC_MACRO(stack, default_value_type)                   \
+  VARIADIC_MACRO(queue, default_value_type)                   \
+  VARIADIC_MACRO(priorityqueue, default_value_type)           \
+  VARIADIC_MACRO(rmw, default_value_type, default_value_type) \
+  VARIADIC_MACRO(set, default_value_type, bool)
 
 void monitor(const std::string& input_file) {
   history_reader reader(input_file);
