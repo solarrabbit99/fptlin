@@ -12,19 +12,16 @@ struct history_reader {
   history_reader(const std::string& path) : path(path) {}
 
   template <typename... Args>
-  history_t<std::conditional_t<
+  using pack_type = std::conditional_t<
       (sizeof...(Args) == 1),
       typename std::tuple_element<0, std::tuple<Args...>>::type,
-      std::tuple<Args...>>>
-  get_hist() {
-    using value_type = std::conditional_t<
-        (sizeof...(Args) == 1),
-        typename std::tuple_element<0, std::tuple<Args...>>::type,
-        std::tuple<Args...>>;
+      std::tuple<Args...>>;
 
+  template <typename... Args>
+  history_t<pack_type<Args...>> get_hist() {
     std::ifstream f(path);
     std::string line;
-    history_t<value_type> hist;
+    history_t<pack_type<Args...>> hist;
     id_type id = 0;
     while (std::getline(f, line)) {
       if (line.empty() || line[0] == '#') continue;
@@ -35,11 +32,12 @@ struct history_reader {
       time_type startTime, endTime;
       ss >> proc >> startTime >> endTime >> methodStr;
 
-      value_type value;
+      pack_type<Args...> value;
       if constexpr (sizeof...(Args) == 1)
         ss >> value;
       else
-        parse<value_type, Args...>(ss, value);
+        std::apply([&ss](Args&... tupleArgs) { ((ss >> tupleArgs), ...); },
+                   value);
 
       hist.emplace_back(++id, proc, stomethod(methodStr), value, startTime,
                         endTime);
@@ -63,12 +61,6 @@ struct history_reader {
   }
 
  private:
-  template <typename Tuple, typename T, typename... Args>
-  void parse(std::istream& ss, Tuple& value) {
-    ss >> std::get<std::tuple_size_v<Tuple> - sizeof...(Args) - 1>(value);
-    if constexpr (sizeof...(Args) > 0) parse<Tuple, Args...>(ss, value);
-  }
-
   const std::string path;
 };
 
