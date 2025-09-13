@@ -36,8 +36,7 @@ struct impl {
 
  public:
   bool is_linearizable(history_t<value_type>& hist) {
-    int n = hist.size();
-    if (n == 0) return true;
+    if (hist.empty()) return true;
 
     handle_empty(hist);
     make_match(hist);
@@ -68,6 +67,8 @@ struct impl {
     for (auto& op : hist) {
       op.startTime += 2;
       op.endTime += 2;
+
+      if (op.value == EMPTY_VALUE) op.method = Method::PEEK;
     }
     hist.push_back({id, hist.back().proc, Method::PUSH, EMPTY_VALUE, 0, 1});
   }
@@ -106,19 +107,17 @@ struct impl {
         entry_index_t b_i = indices[b];
         adj_list[a_i].push_back(b_i);
         switch (optr->method) {
-          {
-            case Method::PUSH:
-              dp_table[a_i][b_i].insert({NonTerminalSymbol::PUSH, optr->value});
-              break;
-            case Method::PEEK:
-              dp_table[a_i][b_i].insert({NonTerminalSymbol::PEEK, optr->value});
-              break;
-            case Method::POP:
-              dp_table[a_i][b_i].insert({NonTerminalSymbol::T, optr->value});
-              break;
-            default:
-              std::unreachable();
-          }
+          case Method::PUSH:
+            dp_table[a_i][b_i].insert({NonTerminalSymbol::PUSH, optr->value});
+            break;
+          case Method::PEEK:
+            dp_table[a_i][b_i].insert({NonTerminalSymbol::PEEK, optr->value});
+            break;
+          case Method::POP:
+            dp_table[a_i][b_i].insert({NonTerminalSymbol::T, optr->value});
+            break;
+          default:
+            std::unreachable();
         }
       }
     }
@@ -159,27 +158,21 @@ struct impl {
   void calc_entry(entry_index_t a, entry_index_t b,
                   matrix_t<nonterm_entry>& dp_table) {
     for (entry_index_t c = 0; c < dp_table[a].size(); ++c)
-      entry_accum(dp_table[a][b], entry_mul(dp_table[a][c], dp_table[c][b]));
+      entry_mul(dp_table[a][c], dp_table[c][b], dp_table[a][b]);
   }
 
-  nonterm_entry entry_mul(const nonterm_entry& a, const nonterm_entry& b) {
-    nonterm_entry ret;
+  void entry_mul(const nonterm_entry& a, const nonterm_entry& b,
+                 nonterm_entry& c) {
     for (non_terminal x : b) {
       if (x.first != NonTerminalSymbol::T || x.second == VAL_EPSILON) continue;
 
       if (a.count({NonTerminalSymbol::PUSH, x.second}))
-        ret.insert({NonTerminalSymbol::T, VAL_EPSILON});
+        c.insert({NonTerminalSymbol::T, VAL_EPSILON});
       else if (a.count({NonTerminalSymbol::PEEK, x.second}))
-        ret.insert({NonTerminalSymbol::T, x.second});
+        c.insert({NonTerminalSymbol::T, x.second});
       else if (a.count({NonTerminalSymbol::T, VAL_EPSILON}))
-        ret.insert(x);
+        c.insert(x);
     }
-
-    return ret;
-  }
-
-  void entry_accum(nonterm_entry& a, const nonterm_entry& b) {
-    a.insert(b.begin(), b.end());
   }
 
   frontier_graph<value_type, Method::PUSH, Method::PEEK, Method::POP> fgraph;

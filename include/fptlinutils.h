@@ -36,6 +36,21 @@ bool operator<(const node& a, const node& b) noexcept {
 
 typedef std::unordered_set<node, node_hash> node_set;
 
+template <typename... Args>
+std::ostream& operator<<(std::ostream& os, const std::tuple<Args...>& tuple) {
+  std::apply([&os](Args... valArgs) { ((os << valArgs), ...); }, tuple);
+  return os;
+}
+
+template <typename value_type>
+std::ostream& operator<<(std::ostream& os,
+                         const fptlin::operation_t<value_type>& o) {
+  os << "[id=" << o.id << ", proc=" << o.proc
+     << ", method=" << fptlin::methodtos(o.method) << ", value=" << o.value
+     << ", startTime=" << o.startTime << ", endTime=" << o.endTime << "]";
+  return os;
+}
+
 /**
  * retrieves events, O(n)
  */
