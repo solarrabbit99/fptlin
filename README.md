@@ -61,7 +61,7 @@ _linearizability_ prints `1` when input history is linearizable, `0` otherwise.
 
 | Data Type                  | Time Complexity              |
 | -------------------------- | ---------------------------- |
-| Stack                      | $O(k2^{3k} \cdot n^3)$       |
+| Stack                      | $O(2^{3k} \cdot n^3)$        |
 | Queue                      | $O(k2^{2k} \cdot n^2)$       |
 | Priority Queue             | $O(k2^k \cdot n\log{n})$     |
 | Read-Modify-Write Register | $O(k2^k \cdot n + n\log{n})$ |

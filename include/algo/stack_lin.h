@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <optional>
 #include <utility>
 
 #include "frontier_graph.h"
@@ -17,13 +18,7 @@ struct impl {
     PEEK,
   };
   using non_terminal = std::pair<NonTerminalSymbol, value_type>;
-  struct non_terminal_hash {
-    std::size_t operator()(const non_terminal& n) const noexcept {
-      return std::hash<uint64_t>{}(static_cast<uint64_t>(n.first) << 32U |
-                                   static_cast<uint64_t>(n.second));
-    }
-  };
-  using nonterm_entry = std::unordered_set<non_terminal, non_terminal_hash>;
+  using nonterm_entry = std::optional<non_terminal>;
   template <typename entry_t>
   using matrix_t = std::vector<std::vector<entry_t>>;
   using entry_index_t = std::size_t;
@@ -33,6 +28,7 @@ struct impl {
   // some unused value
   constexpr static value_type VAL_EPSILON =
       std::numeric_limits<value_type>::max();
+  constexpr static non_terminal START_SYMBOL{NonTerminalSymbol::T, VAL_EPSILON};
 
  public:
   bool is_linearizable(history_t<value_type>& hist) {
@@ -55,9 +51,8 @@ struct impl {
       calc_entry(entry_pos.first, entry_pos.second, dp_table);
 
     node dest = fgraph.first_same_node({static_cast<int>(events.size()), 0U});
-    std::size_t start_i = indices[{0, 0}];
-    std::size_t end_i = indices[dest];
-    return dp_table[start_i][end_i].count({NonTerminalSymbol::T, VAL_EPSILON});
+    nonterm_entry& target = dp_table[indices[{0, 0}]][indices[dest]];
+    return target && *target == START_SYMBOL;
   }
 
  private:
@@ -108,13 +103,13 @@ struct impl {
         adj_list[a_i].push_back(b_i);
         switch (optr->method) {
           case Method::PUSH:
-            dp_table[a_i][b_i].insert({NonTerminalSymbol::PUSH, optr->value});
+            dp_table[a_i][b_i].emplace(NonTerminalSymbol::PUSH, optr->value);
             break;
           case Method::PEEK:
-            dp_table[a_i][b_i].insert({NonTerminalSymbol::PEEK, optr->value});
+            dp_table[a_i][b_i].emplace(NonTerminalSymbol::PEEK, optr->value);
             break;
           case Method::POP:
-            dp_table[a_i][b_i].insert({NonTerminalSymbol::T, optr->value});
+            dp_table[a_i][b_i].emplace(NonTerminalSymbol::T, optr->value);
             break;
           default:
             std::unreachable();
@@ -158,21 +153,24 @@ struct impl {
   void calc_entry(entry_index_t a, entry_index_t b,
                   matrix_t<nonterm_entry>& dp_table) {
     for (entry_index_t c = 0; c < dp_table[a].size(); ++c)
-      entry_mul(dp_table[a][c], dp_table[c][b], dp_table[a][b]);
+      if (entry_mul(dp_table[a][c], dp_table[c][b], dp_table[a][b])) return;
   }
 
-  void entry_mul(const nonterm_entry& a, const nonterm_entry& b,
+  bool entry_mul(const nonterm_entry& a, const nonterm_entry& b,
                  nonterm_entry& c) {
-    for (non_terminal x : b) {
-      if (x.first != NonTerminalSymbol::T || x.second == VAL_EPSILON) continue;
+    if (!a || !b) return false;
 
-      if (a.count({NonTerminalSymbol::PUSH, x.second}))
-        c.insert({NonTerminalSymbol::T, VAL_EPSILON});
-      else if (a.count({NonTerminalSymbol::PEEK, x.second}))
-        c.insert({NonTerminalSymbol::T, x.second});
-      else if (a.count({NonTerminalSymbol::T, VAL_EPSILON}))
-        c.insert(x);
-    }
+    auto [symbol, value] = *b;
+    if (symbol != NonTerminalSymbol::T || value == VAL_EPSILON) return false;
+
+    if (*a == non_terminal{NonTerminalSymbol::PUSH, value})
+      c.emplace(NonTerminalSymbol::T, VAL_EPSILON);
+    else if (*a == non_terminal{NonTerminalSymbol::PEEK, value})
+      c.emplace(NonTerminalSymbol::T, value);
+    else if (*a == non_terminal{NonTerminalSymbol::T, VAL_EPSILON})
+      c = b;
+
+    return true;
   }
 
   frontier_graph<value_type, Method::PUSH, Method::PEEK, Method::POP> fgraph;

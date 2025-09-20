@@ -35,9 +35,9 @@ struct frontier_graph {
     for (int layer = 0; std::cmp_less(layer, events.size()); ++layer) {
       auto [time, is_inv, optr] = events[layer];
 
-      uint32_t opbit = 1 << optr->proc;
-      uint32_t crit_bit =
-          !is_inv && ((optr->method == methods) || ...) ? opbit : 0;
+      bool ignore = ((optr->method != methods) && ...);
+      uint32_t opbit = ignore ? 0 : 1 << optr->proc;
+      uint32_t crit_bit = is_inv ? 0 : opbit;
 
       // iterate through all sub-masks in shrinking order
       for (uint32_t sub = max_bit;; sub = (sub - 1) & max_bit) {
@@ -60,13 +60,13 @@ struct frontier_graph {
         if (sub == 0) break;
       }
 
-      if (((optr->method == methods) || ...)) {
-        if (is_inv) {
-          max_bit |= opbit;
-          ongoing[optr->proc] = optr;
-        } else {
-          max_bit ^= opbit;
-        }
+      if (ignore) continue;
+
+      if (is_inv) {
+        max_bit |= opbit;
+        ongoing[optr->proc] = optr;
+      } else {
+        max_bit ^= opbit;
       }
     }
   }
