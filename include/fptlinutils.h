@@ -51,6 +51,11 @@ std::ostream& operator<<(std::ostream& os,
   return os;
 }
 
+std::ostream& operator<<(std::ostream& os, const node& v) {
+  os << "[layer=" << v.layer << ", bit=" << v.bit << "]";
+  return os;
+}
+
 /**
  * retrieves events, O(n)
  */
