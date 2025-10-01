@@ -12,9 +12,8 @@ namespace queue {
 template <typename value_type>
 struct impl {
   using non_terminal = value_type;
-  using matrix_entry = std::optional<non_terminal>;
   using dym_matrix = std::unordered_map<
-      node, std::unordered_map<node, matrix_entry, node_hash>, node_hash>;
+      node, std::unordered_map<node, non_terminal, node_hash>, node_hash>;
 
  public:
   bool is_linearizable(history_t<value_type>& hist) {
@@ -29,7 +28,7 @@ struct impl {
     node source{0, 0U};
     dest = front_graph.first_same_node({static_cast<int>(events.size()), 0U});
     bfs.push(source);
-    matrix[source][source].emplace(EMPTY_VALUE);
+    matrix[source][source] = EMPTY_VALUE;
     while (!bfs.empty()) {
       node v = bfs.front();
       bfs.pop();
@@ -47,7 +46,7 @@ struct impl {
   bool extend_front(node a) {
     std::queue<node> next_b;
     for (auto& [b, entry] : matrix[a])
-      if (entry && *entry != EMPTY_VALUE) next_b.push(b);
+      if (entry != EMPTY_VALUE) next_b.push(b);
 
     node_set local_vis;
     while (!next_b.empty()) {
@@ -55,13 +54,12 @@ struct impl {
       next_b.pop();
       if (!local_vis.insert(b).second) continue;
 
-      const matrix_entry& entry = matrix[a][b];
       for (auto [c, optr] : front_graph.next(b)) {
-        if (*entry == optr->value) {
+        if (optr->value == matrix[a][b]) {
           if (c == dest) return true;
-          next_b.push(c);
-          matrix[a][c].emplace(optr->method == Method::PEEK ? optr->value
-                                                            : EMPTY_VALUE);
+          matrix[a][c] =
+              optr->method == Method::PEEK ? optr->value : EMPTY_VALUE;
+          if (optr->method == Method::PEEK) next_b.push(c);
         }
       }
     }
@@ -71,7 +69,7 @@ struct impl {
   bool extend_empty(node a) {
     std::queue<node> next_b;
     for (auto& [b, entry] : matrix[a])
-      if (entry && *entry == EMPTY_VALUE) next_b.push(b);
+      if (entry == EMPTY_VALUE) next_b.push(b);
 
     node_set local_vis;
     while (!next_b.empty()) {
@@ -83,7 +81,7 @@ struct impl {
         if (optr->value == EMPTY_VALUE && overlaps(a, c)) {
           if (c == dest) return true;
           next_b.push(c);
-          matrix[a][c].emplace(EMPTY_VALUE);
+          matrix[a][c] = EMPTY_VALUE;
         }
       }
     }
@@ -92,12 +90,14 @@ struct impl {
 
   bool extend_enq(node a) {
     for (auto& [b, entry] : matrix[a])
-      for (auto [c, optr] : enq_graph.next(a)) {
-        if (!precedes(b, c)) {
-          bfs.push(c);
-          matrix[c][b].emplace(optr->value);
+      if (entry == EMPTY_VALUE)  // extend only when previous tracked
+                                 // value is dequeued
+        for (auto [c, optr] : enq_graph.next(a)) {
+          if (!precedes(b, c)) {
+            bfs.push(c);
+            matrix[c][b] = optr->value;
+          }
         }
-      }
     return false;
   }
 
