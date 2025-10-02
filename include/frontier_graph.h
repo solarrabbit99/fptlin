@@ -1,5 +1,7 @@
 #pragma once
 
+#include <unordered_map>
+
 #include "fptlinutils.h"
 
 namespace fptlin {
@@ -11,17 +13,16 @@ struct frontier_graph {
   using frontier_adj_list =
       std::unordered_map<node, frontier_list_t, node_hash>;
   using node_map = std::unordered_map<node, node, node_hash>;
-  using node_ufds = fptlin::ufds<node, node_hash>;
 
   const frontier_list_t& next(const node& node) { return madj_list[node]; }
 
   const frontier_adj_list& adj_list() const { return madj_list; }
 
-  node first_same_node(const node& node) { return ufds.find(node); }
+  node first_same_node(const node& node) { return parent_map[node]; }
 
-  node last_same_node(const node& node) {
-    auto iter = last_same_nodes.find(node);
-    return iter == last_same_nodes.end() ? node : iter->second;
+  node last_same_node(const node& first_node) {
+    auto iter = last_added_child_map.find(first_node);
+    return iter == last_added_child_map.end() ? first_node : iter->second;
   }
 
   /**
@@ -41,12 +42,13 @@ struct frontier_graph {
 
       // iterate through all sub-masks in shrinking order
       for (uint32_t sub = max_bit;; sub = (sub - 1) & max_bit) {
-        // populate `ufds` and `last_same_nodes`
-        node first = ufds.find({layer, sub});
+        // union join
+        node curr{layer, sub};
+        node first = parent_map.try_emplace(curr, curr).first->second;
         if (!crit_bit || (crit_bit & sub)) {
           node last = {layer + 1, sub ^ crit_bit};
-          ufds.join(first, last);
-          last_same_nodes[first] = last;
+          parent_map[last] = first;
+          last_added_child_map[first] = last;
         }
 
         // populate `adj_list`
@@ -54,7 +56,8 @@ struct frontier_graph {
           uint32_t curr_bit = x & -x;
           operation_t<value_type>* to_add = ongoing[std::countr_zero(x)];
           node next{layer, sub | curr_bit};
-          madj_list[first].emplace_back(ufds.find(next), to_add);
+          madj_list[first].emplace_back(
+              parent_map.try_emplace(next, next).first->second, to_add);
         }
 
         if (sub == 0) break;
@@ -72,8 +75,8 @@ struct frontier_graph {
   }
 
  private:
-  node_map last_same_nodes;
-  node_ufds ufds;
+  std::unordered_map<node, node, node_hash> parent_map;
+  std::unordered_map<node, node, node_hash> last_added_child_map;
   frontier_adj_list madj_list;
 };
 
