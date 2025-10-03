@@ -75,8 +75,8 @@ struct frontier_graph {
   }
 
  private:
-  std::unordered_map<node, node, node_hash> parent_map;
-  std::unordered_map<node, node, node_hash> last_added_child_map;
+  node_map parent_map;
+  node_map last_added_child_map;
   frontier_adj_list madj_list;
 };
 
