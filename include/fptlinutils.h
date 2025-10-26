@@ -15,7 +15,7 @@ struct bit_pattern {
 
 struct node {
   int layer;
-  uint32_t bit;
+  uint32_t bits;
 };
 
 struct node_hash {
@@ -51,7 +51,7 @@ std::ostream& operator<<(std::ostream& os,
 }
 
 std::ostream& operator<<(std::ostream& os, const node& v) {
-  os << "[layer=" << v.layer << ", bit=" << v.bit << "]";
+  os << "[layer=" << v.layer << ", bits=" << v.bits << "]";
   return os;
 }
 

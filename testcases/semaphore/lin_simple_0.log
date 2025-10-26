@@ -1,0 +1,4 @@
+# semaphore
+0 0 2 INCR 1
+1 0 4 DECR 1
+0 3 5 DECR 0

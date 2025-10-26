@@ -22,6 +22,7 @@ size_t hist_size;
   VARIADIC_MACRO(queue, default_value_type)                   \
   VARIADIC_MACRO(priorityqueue, default_value_type)           \
   VARIADIC_MACRO(rmw, default_value_type, default_value_type) \
+  VARIADIC_MACRO(semaphore, bool)                             \
   VARIADIC_MACRO(set, default_value_type, bool)
 
 void monitor(const std::string& input_file) {

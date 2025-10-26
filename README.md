@@ -12,6 +12,7 @@ Histories are text files that provide a **data type** as header and **operations
 - `queue`
 - `priorityqueue`
 - `rmw`
+- `semaphore`
 - `set`
 
 **Operations** are denoted by process id, start time, end time, method, and value(s) in that order. Refer to examples in `testcases` directory for supported methods and values for a given data type.
@@ -65,4 +66,5 @@ _linearizability_ prints `1` when input history is linearizable, `0` otherwise.
 | Queue                      | $O(2^{2k} \cdot n^2)$        |
 | Priority Queue             | $O(k2^k \cdot n\log{n})$     |
 | Read-Modify-Write Register | $O(k2^k \cdot n + n\log{n})$ |
+| Non-blocking Semaphore     | $O(k2^k \cdot n + n\log{n})$ |
 | Set                        | $O(k2^k \cdot n + n\log{n})$ |

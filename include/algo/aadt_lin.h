@@ -31,29 +31,31 @@ struct impl {
   }
 
  private:
-  bool inter_layer(node v, uint32_t crit_bit, uint32_t in_bit) {
-    // `v.bit` doesn't satisfy `crit_bit`
-    if (crit_bit & ~v.bit) return false;
+  // tries to move time forward without scheduling operations
+  bool inter_layer(node v, uint32_t res_bit, uint32_t inv_bit) {
+    // `v.bits` doesn't satisfy `res_bit`
+    if (res_bit & ~v.bits) return false;
 
-    if (in_bit)  // add `in_bit`
-      ongoing[std::countr_zero(in_bit)] = std::get<2>(events[v.layer]);
+    if (inv_bit)  // add `inv_bit` optr
+      ongoing[std::countr_zero(inv_bit)] = std::get<2>(events[v.layer]);
 
-    bool good = dfs({v.layer + 1, v.bit ^ crit_bit});
+    bool good = dfs({v.layer + 1, v.bits ^ res_bit});
 
-    if (crit_bit)  // add back potentially lost `crit_bit` optr
-      ongoing[std::countr_zero(crit_bit)] = std::get<2>(events[v.layer]);
+    if (res_bit)  // add back potentially lost responding optr
+      ongoing[std::countr_zero(res_bit)] = std::get<2>(events[v.layer]);
 
     return good;
   }
 
+  // tries to schedule operations
   bool intra_layer(node v, uint32_t max_bit) {
     for (uint32_t x = max_bit; x; x &= (x - 1)) {
       uint32_t curr_bit = x & -x;
 
-      if ((curr_bit & v.bit) | (curr_bit & ~max_bit)) continue;
+      if ((curr_bit & v.bits) | (curr_bit & ~max_bit)) continue;
 
       operation_t<value_type>* to_add = ongoing[std::countr_zero(x)];
-      node next{v.layer, v.bit | curr_bit};
+      node next{v.layer, v.bits | curr_bit};
 
       if (obj_impl.apply(to_add)) {
         if (dfs(next)) return true;
@@ -68,8 +70,8 @@ struct impl {
   bool dfs(node v) {
     if (std::cmp_equal(v.layer, events.size())) return true;
     if (!visited.insert(v).second) return false;
-    auto [max_bit, crit_bit, in_bit] = pattern[v.layer];
-    return intra_layer(v, max_bit) || inter_layer(v, crit_bit, in_bit);
+    auto [max_bit, res_bit, inv_bit] = pattern[v.layer];
+    return intra_layer(v, max_bit) || inter_layer(v, res_bit, inv_bit);
   }
 
   // global states
