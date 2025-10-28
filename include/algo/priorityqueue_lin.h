@@ -40,7 +40,7 @@ struct priority_queue_impl {
 
     switch (o->method) {
       case INSERT:
-        values.erase(o->value);
+        values.erase(values.find(o->value));
         return;
       case POLL:
         values.insert(o->value);
