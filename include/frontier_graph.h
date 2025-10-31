@@ -36,7 +36,8 @@ struct frontier_graph {
     for (int layer = 0; std::cmp_less(layer, events.size()); ++layer) {
       auto [time, is_inv, optr] = events[layer];
 
-      bool ignore = ((optr->method != methods) && ...);
+      bool ignore =
+          (sizeof...(methods) > 0) && ((optr->method != methods) && ...);
       uint32_t opbit = ignore ? 0 : 1 << optr->proc;
       uint32_t crit_bit = is_inv ? 0 : opbit;
 

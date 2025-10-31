@@ -1,17 +1,13 @@
 #pragma once
 
-#include <cassert>
-#include <optional>
-#include <utility>
-
-#include "frontier_graph.h"
+#include "unamb_cfg_lin.h"
 
 namespace fptlin {
 
 namespace stack {
 
 template <typename value_type>
-struct impl {
+struct stack_grammar {
   enum NonTerminalSymbol {
     T,
     PUSH,
@@ -19,145 +15,27 @@ struct impl {
   };
   using non_terminal = std::pair<NonTerminalSymbol, value_type>;
   using nonterm_entry = std::optional<non_terminal>;
-  template <typename entry_t>
-  using matrix_t = std::vector<std::vector<entry_t>>;
-  using entry_index_t = std::size_t;
-  using entry_order_t =
-      std::vector<std::pair<int, std::pair<entry_index_t, entry_index_t>>>;
 
   // some unused value
   constexpr static value_type VAL_EPSILON =
       std::numeric_limits<value_type>::max();
   constexpr static non_terminal START_SYMBOL{NonTerminalSymbol::T, VAL_EPSILON};
 
- public:
-  bool is_linearizable(history_t<value_type>& hist) {
-    if (hist.empty()) return true;
-
-    handle_empty(hist);
-    make_match(hist);
-
-    events_t<value_type> events = get_events(hist);
-    std::sort(events.begin(), events.end());
-    fgraph.build(events);
-
-    matrix_t<nonterm_entry> dp_table;
-    matrix_t<entry_index_t> adj_list;
-    std::unordered_map<node, entry_index_t, node_hash> indices;
-    init_mats(dp_table, adj_list, indices);
-
-    // time complexity bottleneck O(n^3)
-    for (auto [dist, entry_pos] : entry_order(adj_list))
-      calc_entry(entry_pos.first, entry_pos.second, dp_table);
-
-    node dest = fgraph.first_same_node({static_cast<int>(events.size()), 0U});
-    nonterm_entry& target = dp_table[indices[{0, 0}]][indices[dest]];
-    return target && *target == START_SYMBOL;
-  }
-
- private:
-  // prepend an operation that pushes the empty value
-  void handle_empty(history_t<value_type>& hist) {
-    id_type id = hist.back().id + 1;
-    for (auto& op : hist) {
-      op.startTime += 2;
-      op.endTime += 2;
-
-      if (op.value == EMPTY_VALUE) op.method = Method::PEEK;
-    }
-    hist.push_back({id, hist.back().proc, Method::PUSH, EMPTY_VALUE, 0, 1});
-  }
-
-  void make_match(history_t<value_type>& hist) {
-    time_type last_time = 0;
-    id_type id = hist.back().id + 1;
-    for (auto& op : hist) last_time = std::max(op.endTime + 1, last_time);
-    last_time <<= 1;
-
-    int n = hist.size();
-    for (int i = 0; i < n; ++i) {
-      auto& op = hist[i];
-      if (op.method != Method::PEEK)
-        hist.push_back(
-            {id++, op.proc,
-             (op.method == Method::PUSH) ? Method::POP : Method::PUSH, op.value,
-             last_time - op.endTime, last_time - op.startTime});
+  static non_terminal init_entry(operation_t<value_type>* optr) {
+    switch (optr->method) {
+      case Method::PUSH:
+        return {NonTerminalSymbol::PUSH, optr->value};
+      case Method::PEEK:
+        return {NonTerminalSymbol::PEEK, optr->value};
+      case Method::POP:
+        return {NonTerminalSymbol::T, optr->value};
+      default:
+        std::unreachable();
     }
   }
 
-  void init_mats(matrix_t<nonterm_entry>& dp_table,
-                 matrix_t<entry_index_t>& adj_list,
-                 std::unordered_map<node, entry_index_t, node_hash>& indices) {
-    for (auto& [a, v] : fgraph.adj_list()) {
-      indices.emplace(a, indices.size());
-      for (auto [b, optr] : v) indices.emplace(b, indices.size());
-    }
-    std::size_t n = indices.size();
-    dp_table.resize(n, std::vector<nonterm_entry>(n));
-    adj_list.resize(n);
-
-    for (auto& [a, v] : fgraph.adj_list()) {
-      entry_index_t a_i = indices[a];
-      for (auto [b, optr] : v) {
-        entry_index_t b_i = indices[b];
-        adj_list[a_i].push_back(b_i);
-        switch (optr->method) {
-          case Method::PUSH:
-            dp_table[a_i][b_i].emplace(NonTerminalSymbol::PUSH, optr->value);
-            break;
-          case Method::PEEK:
-            dp_table[a_i][b_i].emplace(NonTerminalSymbol::PEEK, optr->value);
-            break;
-          case Method::POP:
-            dp_table[a_i][b_i].emplace(NonTerminalSymbol::T, optr->value);
-            break;
-          default:
-            std::unreachable();
-        }
-      }
-    }
-  }
-
-  // BFS from each node O(V * (V + E)), where E = O(kV)
-  entry_order_t entry_order(matrix_t<entry_index_t>& adj_list) {
-    std::size_t n = adj_list.size();
-    entry_order_t ret;
-
-    for (entry_index_t src = 0; src < adj_list.size(); ++src) {
-      std::vector<int> dist(n, -1);
-      std::queue<entry_index_t> q;
-
-      dist[src] = 0;
-      q.push(src);
-
-      while (!q.empty()) {
-        entry_index_t u = q.front();
-        q.pop();
-
-        // Explore neighbors from adj_list[u]
-        for (entry_index_t v : adj_list[u])
-          if (dist[v] == -1) {
-            dist[v] = dist[u] + 1;
-            q.push(v);
-          }
-      }
-
-      // Store computed distances
-      for (entry_index_t i = 0; i < n; ++i)
-        if (dist[i] != -1) ret.push_back({dist[i], {src, i}});
-    }
-    std::sort(ret.begin(), ret.end());
-    return ret;
-  }
-
-  void calc_entry(entry_index_t a, entry_index_t b,
-                  matrix_t<nonterm_entry>& dp_table) {
-    for (entry_index_t c = 0; c < dp_table[a].size(); ++c)
-      if (entry_mul(dp_table[a][c], dp_table[c][b], dp_table[a][b])) return;
-  }
-
-  bool entry_mul(const nonterm_entry& a, const nonterm_entry& b,
-                 nonterm_entry& c) {
+  static bool entry_mul(const nonterm_entry& a, const nonterm_entry& b,
+                        nonterm_entry& c) {
     if (!a || !b) return false;
 
     auto [symbol, value] = *b;
@@ -172,13 +50,45 @@ struct impl {
 
     return true;
   }
-
-  frontier_graph<value_type, Method::PUSH, Method::PEEK, Method::POP> fgraph;
 };
+
+// prepend an operation that pushes the empty value
+template <typename value_type>
+void handle_empty(history_t<value_type>& hist) {
+  id_type id = hist.back().id + 1;
+  for (auto& op : hist) {
+    op.startTime += 2;
+    op.endTime += 2;
+
+    if (op.value == EMPTY_VALUE) op.method = Method::PEEK;
+  }
+  hist.push_back({id, hist.back().proc, Method::PUSH, EMPTY_VALUE, 0, 1});
+}
+
+template <typename value_type>
+void make_match(history_t<value_type>& hist) {
+  time_type last_time = 0;
+  id_type id = hist.back().id + 1;
+  for (auto& op : hist) last_time = std::max(op.endTime + 1, last_time);
+  last_time <<= 1;
+
+  int n = hist.size();
+  for (int i = 0; i < n; ++i) {
+    auto& op = hist[i];
+    if (op.method != Method::PEEK)
+      hist.push_back({id++, op.proc,
+                      (op.method == Method::PUSH) ? Method::POP : Method::PUSH,
+                      op.value, last_time - op.endTime,
+                      last_time - op.startTime});
+  }
+}
 
 template <typename value_type>
 bool is_linearizable(history_t<value_type>& hist) {
-  return impl<value_type>().is_linearizable(hist);
+  handle_empty(hist);
+  make_match(hist);
+  return unamb_cfg::impl<value_type, stack_grammar<value_type>>()
+      .is_linearizable(hist);
 }
 
 }  // namespace stack
