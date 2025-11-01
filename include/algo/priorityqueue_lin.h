@@ -1,6 +1,7 @@
 #pragma once
 
-#include <set>
+#include <queue>
+#include <unordered_map>
 
 #include "aadt_lin.h"
 
@@ -13,22 +14,22 @@ struct priority_queue_impl {
   priority_queue_impl() {}
 
   bool apply(operation_t<value_type>* o) {
+    cleanup();
+
     switch (o->method) {
       case INSERT:
-        values.insert(o->value);
+        heap.push(o->value);
         return true;
-      case POLL: {
-        if (values.empty() && o->value == EMPTY_VALUE) return true;
-        auto highest_iter = values.rbegin();
-        if (!values.empty() && *highest_iter == o->value) {
-          values.erase(std::prev(highest_iter.base()));
+      case POLL:
+        if (heap.empty() && o->value == EMPTY_VALUE) return true;
+        if (!heap.empty() && heap.top() == o->value) {
+          heap.pop();
           return true;
         }
         return false;
-      }
       case PEEK:
-        if (values.empty() && o->value == EMPTY_VALUE) return true;
-        if (!values.empty() && *values.rbegin() == o->value) return true;
+        if (heap.empty() && o->value == EMPTY_VALUE) return true;
+        if (!heap.empty() && heap.top() == o->value) return true;
         return false;
       default:
         std::unreachable();
@@ -40,10 +41,10 @@ struct priority_queue_impl {
 
     switch (o->method) {
       case INSERT:
-        values.erase(values.find(o->value));
+        removed_count[o->value]++;
         return;
       case POLL:
-        values.insert(o->value);
+        heap.push(o->value);
         return;
       default:
         return;
@@ -51,7 +52,18 @@ struct priority_queue_impl {
   }
 
  private:
-  std::multiset<value_type> values;
+  std::priority_queue<value_type> heap;
+  std::unordered_map<value_type, std::size_t> removed_count;
+
+  void cleanup() {
+    while (!heap.empty()) {
+      auto top = heap.top();
+      auto it = removed_count.find(top);
+      if (it == removed_count.end() || it->second == 0) break;
+      it->second--;
+      heap.pop();
+    }
+  }
 };
 
 template <typename value_type>
