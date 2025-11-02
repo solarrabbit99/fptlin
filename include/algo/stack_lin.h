@@ -14,7 +14,6 @@ struct stack_grammar {
     PEEK,
   };
   using non_terminal = std::pair<NonTerminalSymbol, value_type>;
-  using nonterm_entry = std::optional<non_terminal>;
 
   // some unused value
   constexpr static value_type VAL_EPSILON =
@@ -34,21 +33,19 @@ struct stack_grammar {
     }
   }
 
-  static bool entry_mul(const nonterm_entry& a, const nonterm_entry& b,
-                        nonterm_entry& c) {
-    if (!a || !b) return false;
+  static std::optional<non_terminal> entry_mul(const non_terminal& a,
+                                               const non_terminal& b) {
+    auto [symbol, value] = b;
+    if (symbol != NonTerminalSymbol::T || value == VAL_EPSILON)
+      return std::nullopt;
 
-    auto [symbol, value] = *b;
-    if (symbol != NonTerminalSymbol::T || value == VAL_EPSILON) return false;
+    if (a == non_terminal{NonTerminalSymbol::PUSH, value})
+      return non_terminal{NonTerminalSymbol::T, VAL_EPSILON};
+    if (a == non_terminal{NonTerminalSymbol::PEEK, value})
+      return non_terminal{NonTerminalSymbol::T, value};
+    if (a == non_terminal{NonTerminalSymbol::T, VAL_EPSILON}) return b;
 
-    if (*a == non_terminal{NonTerminalSymbol::PUSH, value})
-      c.emplace(NonTerminalSymbol::T, VAL_EPSILON);
-    else if (*a == non_terminal{NonTerminalSymbol::PEEK, value})
-      c.emplace(NonTerminalSymbol::T, value);
-    else if (*a == non_terminal{NonTerminalSymbol::T, VAL_EPSILON})
-      c = b;
-
-    return true;
+    return std::nullopt;
   }
 };
 

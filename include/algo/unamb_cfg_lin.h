@@ -13,22 +13,25 @@ namespace fptlin {
 namespace unamb_cfg {
 
 template <typename T, typename value_type>
-concept cfg_type = requires(const std::optional<typename T::non_terminal>& o1,
-                            const std::optional<typename T::non_terminal>& o2,
-                            std::optional<typename T::non_terminal>& o3,
-                            operation_t<value_type>* optr) {
-  typename T::non_terminal;
-  { T::START_SYMBOL } -> std::convertible_to<typename T::non_terminal>;
-  { T::init_entry(optr) } -> std::convertible_to<typename T::non_terminal>;
-  { T::entry_mul(o1, o2, o3) } -> std::convertible_to<bool>;
-};
+concept cfg_type =
+    requires(const T::non_terminal& o1, const T::non_terminal& o2,
+             operation_t<value_type>* optr) {
+      typename T::non_terminal;
+      { T::START_SYMBOL } -> std::convertible_to<typename T::non_terminal>;
+      { T::init_entry(optr) } -> std::convertible_to<typename T::non_terminal>;
+      {
+        T::entry_mul(o1, o2)
+      } -> std::convertible_to<std::optional<typename T::non_terminal>>;
+    };
 
 template <typename value_type, cfg_type<value_type> cfg>
 struct impl {
-  using non_terminal = cfg::non_terminal;
-  using nonterm_entry = std::optional<non_terminal>;
-  template <typename entry_t>
-  using matrix_t = std::vector<std::vector<entry_t>>;
+  using non_terminal = typename cfg::non_terminal;
+
+  // Sparse, memory-efficient matrix row
+  using dp_row_t = std::unordered_map<std::size_t, non_terminal>;
+  using dp_table_t = std::vector<dp_row_t>;
+
   using entry_index_t = std::size_t;
   using entry_order_t =
       std::vector<std::pair<int, std::pair<entry_index_t, entry_index_t>>>;
@@ -44,80 +47,110 @@ struct impl {
     events_t<value_type> events = get_events(hist);
     std::sort(events.begin(), events.end());
     fgraph.build(events);
+    std::size_t graph_size = fgraph.size();
 
-    matrix_t<nonterm_entry> dp_table;
-    matrix_t<entry_index_t> adj_list;
+    dp_table_t dp_table;
     std::unordered_map<node, entry_index_t, node_hash> indices;
-    init_mats(dp_table, adj_list, indices);
+    std::vector<node> index_to_node;  // new vector
+    indices.reserve(graph_size);
+    index_to_node.reserve(graph_size);
+    dp_table.resize(graph_size);
 
-    // time complexity bottleneck O(n^3)
-    for (auto [dist, entry_pos] : entry_order(adj_list))
+    init_mats(dp_table, indices, index_to_node);
+
+    // Precompute traversal order efficiently
+    for (auto [dist, entry_pos] : entry_order(indices, index_to_node))
       calc_entry(entry_pos.first, entry_pos.second, dp_table);
 
     node dest = fgraph.first_same_node({static_cast<int>(events.size()), 0U});
-    nonterm_entry& target = dp_table[indices[{0, 0}]][indices[dest]];
-    return target && *target == START_SYMBOL;
+    auto it_src = indices.find({0, 0});
+    auto it_dst = indices.find(dest);
+    if (it_src == indices.end() || it_dst == indices.end()) return false;
+
+    auto it = dp_table[it_src->second].find(it_dst->second);
+    return (it != dp_table[it_src->second].end()) && it->second == START_SYMBOL;
   }
 
  private:
-  void init_mats(matrix_t<nonterm_entry>& dp_table,
-                 matrix_t<entry_index_t>& adj_list,
-                 std::unordered_map<node, entry_index_t, node_hash>& indices) {
-    for (auto& [a, v] : fgraph.adj_list()) {
-      indices.emplace(a, indices.size());
-      for (auto [b, optr] : v) indices.emplace(b, indices.size());
-    }
-    std::size_t n = indices.size();
-    dp_table.resize(n, std::vector<nonterm_entry>(n));
-    adj_list.resize(n);
+  void init_mats(dp_table_t& dp_table,
+                 std::unordered_map<node, entry_index_t, node_hash>& indices,
+                 std::vector<node>& index_to_node) {
+    const auto& adj = fgraph.adj_list();
 
-    for (auto& [a, v] : fgraph.adj_list()) {
+    for (auto& [a, v] : adj) {
+      if (!indices.contains(a)) {
+        indices.emplace(a, indices.size());
+        index_to_node.push_back(a);
+      }
+      for (auto& [b, optr] : v) {
+        if (!indices.contains(b)) {
+          indices.emplace(b, indices.size());
+          index_to_node.push_back(b);
+        }
+      }
+    }
+
+    for (auto& [a, v] : adj) {
       entry_index_t a_i = indices[a];
-      for (auto [b, optr] : v) {
+      dp_row_t& row = dp_table[a_i];
+      row.reserve(v.size());
+      for (auto& [b, optr] : v) {
         entry_index_t b_i = indices[b];
-        adj_list[a_i].push_back(b_i);
-        dp_table[a_i][b_i].emplace(cfg::init_entry(optr));
+        row.emplace(b_i, cfg::init_entry(optr));
       }
     }
   }
 
-  // BFS from each node O(V * (V + E)), where E = O(kV)
-  entry_order_t entry_order(matrix_t<entry_index_t>& adj_list) {
-    std::size_t n = adj_list.size();
+  void calc_entry(entry_index_t a, entry_index_t b, dp_table_t& dp_table) {
+    auto& row_a = dp_table[a];
+    for (const auto& [c, entry_ac] : row_a) {
+      const auto it_cb = dp_table[c].find(b);
+      if (it_cb == dp_table[c].end()) continue;
+      std::optional<non_terminal> res = cfg::entry_mul(entry_ac, it_cb->second);
+      if (res) row_a[b] = *res;
+    }
+  }
+
+  entry_order_t entry_order(
+      const std::unordered_map<node, entry_index_t, node_hash>& indices,
+      const std::vector<node>& index_to_node) {
+    const std::size_t n = indices.size();
     entry_order_t ret;
 
-    for (entry_index_t src = 0; src < adj_list.size(); ++src) {
-      std::vector<int> dist(n, -1);
-      std::queue<entry_index_t> q;
+    std::vector<int> dist(n, -1);
+    std::queue<entry_index_t> q;
+    const auto& adj = fgraph.adj_list();
 
+    for (entry_index_t src = 0; src < n; ++src) {
+      std::fill(dist.begin(), dist.end(), -1);
       dist[src] = 0;
       q.push(src);
 
       while (!q.empty()) {
-        entry_index_t u = q.front();
+        const entry_index_t u = q.front();
         q.pop();
 
-        // Explore neighbors from adj_list[u]
-        for (entry_index_t v : adj_list[u])
+        const node& u_node = index_to_node[u];
+        auto it = adj.find(u_node);
+        if (it == adj.end()) continue;
+
+        for (const auto& [vnode, _] : it->second) {
+          auto v_it = indices.find(vnode);
+          if (v_it == indices.end()) continue;
+          const entry_index_t v = v_it->second;
           if (dist[v] == -1) {
             dist[v] = dist[u] + 1;
             q.push(v);
           }
+        }
       }
 
-      // Store computed distances
       for (entry_index_t i = 0; i < n; ++i)
         if (dist[i] != -1) ret.push_back({dist[i], {src, i}});
     }
+
     std::sort(ret.begin(), ret.end());
     return ret;
-  }
-
-  void calc_entry(entry_index_t a, entry_index_t b,
-                  matrix_t<nonterm_entry>& dp_table) {
-    for (entry_index_t c = 0; c < dp_table[a].size(); ++c)
-      if (cfg::entry_mul(dp_table[a][c], dp_table[c][b], dp_table[a][b]))
-        return;
   }
 
   frontier_graph<value_type> fgraph;

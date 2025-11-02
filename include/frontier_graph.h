@@ -25,6 +25,8 @@ struct frontier_graph {
     return iter == last_added_child_map.end() ? first_node : iter->second;
   }
 
+  std::size_t size() const { return parent_map.size(); }
+
   /**
    * Joining is performed in increments of layer.
    * Resulting ufds will have depth of at most 1.
